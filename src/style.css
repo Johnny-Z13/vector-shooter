@@ -651,6 +651,9 @@ canvas {
 }
 
 .choice {
+  --install-color: var(--yellow);
+  position: relative;
+  overflow: hidden;
   min-height: 154px;
   border: 1px solid rgba(143, 255, 125, 0.58);
   color: #eafff8;
@@ -669,11 +672,38 @@ canvas {
 .choice.selected {
   opacity: 1;
   transform: scale(1.035);
-  border-color: var(--yellow);
+  border-color: var(--install-color);
+  background:
+    radial-gradient(circle at 18% 20%, color-mix(in srgb, var(--install-color) 22%, transparent), transparent 34%),
+    linear-gradient(180deg, rgba(4, 24, 22, 0.92), rgba(1, 8, 10, 0.86));
   box-shadow:
-    0 0 34px rgba(255, 242, 122, 0.36),
-    inset 0 0 34px rgba(255, 242, 122, 0.13);
-  animation: install-pop 560ms ease both;
+    0 0 42px color-mix(in srgb, var(--install-color) 54%, transparent),
+    inset 0 0 38px color-mix(in srgb, var(--install-color) 22%, transparent);
+  animation: install-pop 680ms cubic-bezier(.2, .9, .1, 1) both;
+}
+
+.choice.selected::before,
+.choice.selected::after {
+  content: "";
+  position: absolute;
+  inset: -35%;
+  pointer-events: none;
+}
+
+.choice.selected::before {
+  background:
+    linear-gradient(115deg, transparent 36%, color-mix(in srgb, var(--install-color) 46%, transparent) 48%, rgba(255, 255, 255, 0.58) 50%, color-mix(in srgb, var(--install-color) 42%, transparent) 52%, transparent 64%);
+  transform: translateX(-58%);
+  animation: install-sweep 720ms ease-out both;
+}
+
+.choice.selected::after {
+  border: 1px solid color-mix(in srgb, var(--install-color) 72%, transparent);
+  box-shadow:
+    inset 0 0 28px color-mix(in srgb, var(--install-color) 18%, transparent),
+    0 0 28px color-mix(in srgb, var(--install-color) 24%, transparent);
+  transform: scale(0.82);
+  animation: install-ring 720ms ease-out both;
 }
 
 .choice strong {
@@ -1067,8 +1097,20 @@ canvas {
 
 @keyframes install-pop {
   0% { transform: scale(1); filter: brightness(1); }
-  45% { transform: scale(1.055); filter: brightness(1.45); }
-  100% { transform: scale(1.02); filter: brightness(1.12); }
+  34% { transform: scale(1.07); filter: brightness(1.58) saturate(1.18); }
+  100% { transform: scale(1.02); filter: brightness(1.15); }
+}
+
+@keyframes install-sweep {
+  0% { opacity: 0; transform: translateX(-68%) rotate(0.001deg); }
+  28% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(68%) rotate(0.001deg); }
+}
+
+@keyframes install-ring {
+  0% { opacity: 0; transform: scale(0.72); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.18); }
 }
 
 @keyframes install-scan {

@@ -2461,7 +2461,8 @@ class VectorShooter {
     if (upgrade.id === 'magnet') this.stats.score += 60
     this.camera.shake = Math.max(this.camera.shake, upgrade.category === 'weapon' ? 7 : 5)
     const anchor = this.fxAnchor()
-    this.burst(anchor.x, anchor.y, upgrade.category === 'weapon' ? '#57fff3' : '#8fff7d', 18 + this.build[upgrade.id] * 2, 210)
+    const color = this.upgradeFxColor(upgrade)
+    this.upgradeSurge(anchor.x, anchor.y, color, upgrade.category === 'weapon' ? '#ffffff' : '#d7fff7', upgrade.category === 'weapon' ? 1.1 : 0.92)
     this.toast(`${upgrade.name.toUpperCase()} ONLINE`)
   }
 
@@ -2470,7 +2471,7 @@ class VectorShooter {
     this.audio.level()
     this.camera.shake = Math.max(this.camera.shake, 12)
     const anchor = this.fxAnchor()
-    this.burst(anchor.x, anchor.y, '#fff27a', 34, 320)
+    this.upgradeSurge(anchor.x, anchor.y, '#fff27a', '#ffffff', 1.75)
     this.toast(`${evolution.name.toUpperCase()} EVOLVED`)
   }
 
@@ -2494,7 +2495,7 @@ class VectorShooter {
     this.stats.score += 500 + this.relics.size * 120
     this.audio.level()
     const anchor = this.fxAnchor()
-    this.burst(anchor.x, anchor.y, '#fff27a', 22, 240)
+    this.upgradeSurge(anchor.x, anchor.y, '#fff27a', '#b990ff', 1.25)
     this.toast(`${message}: ${relic.name.toUpperCase()}`)
   }
 
@@ -2505,12 +2506,65 @@ class VectorShooter {
       this.player.hull = clamp(this.player.hull + 10, 0, this.player.maxHull)
     }
     const anchor = this.fxAnchor()
-    this.burst(anchor.x, anchor.y, '#70a8ff', 14, 180)
+    this.upgradeSurge(anchor.x, anchor.y, '#70a8ff', '#d7fff7', 0.72)
     this.toast(choice.name.toUpperCase())
   }
 
   private fxAnchor(): Vec {
     return this.surface?.ship ?? this.player
+  }
+
+  private upgradeFxColor(upgrade: Upgrade) {
+    if (upgrade.category === 'weapon') return '#57fff3'
+    return {
+      weapons: '#57fff3',
+      navigation: '#70a8ff',
+      survival: '#8fff7d',
+      economy: '#fff27a',
+      planetcraft: '#fff27a',
+      control: '#b990ff'
+    }[upgrade.bucket] ?? '#8fff7d'
+  }
+
+  private upgradeSurge(x: number, y: number, color: string, accent: string, intensity: number) {
+    const baseCount = Math.floor(18 + intensity * 18)
+    const baseSpeed = 190 + intensity * 85
+    this.burst(x, y, color, baseCount, baseSpeed)
+    if (intensity > 0.9) this.burst(x, y, accent, Math.floor(baseCount * 0.45), baseSpeed * 0.72)
+    const spokes = Math.floor(8 + intensity * 6)
+    const ring = 30 + intensity * 18
+    for (let i = 0; i < spokes; i += 1) {
+      if (this.particles.length >= MAX_PARTICLES) this.particles.shift()
+      const a = (i / spokes) * TAU + rand(-0.08, 0.08)
+      const speed = rand(baseSpeed * 0.62, baseSpeed * 1.25)
+      const life = rand(0.45, 0.82 + intensity * 0.12)
+      this.particles.push({
+        x: x + Math.cos(a) * ring,
+        y: y + Math.sin(a) * ring,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        life,
+        maxLife: life,
+        color: i % 3 === 0 ? accent : color,
+        size: rand(2.5, 6 + intensity * 4),
+        angle: a,
+        spin: rand(-10, 10),
+        sides: i % 2 ? 4 : 3,
+        glow: this.allowGlow() ? 34 : 16
+      })
+    }
+    if (this.shockwaves.length < MAX_SHOCKWAVES) {
+      this.shockwaves.push({
+        x,
+        y,
+        radius: 24 + intensity * 10,
+        speed: 150 + intensity * 70,
+        life: 0.5 + intensity * 0.12,
+        maxLife: 0.5 + intensity * 0.12,
+        color: accent,
+        jag: rand(0, TAU)
+      })
+    }
   }
 
   private recordPlanetArtifact(planet: Planet, source: string) {
@@ -4077,6 +4131,7 @@ class VectorShooter {
 
   private renderBackground(ctx: CanvasRenderingContext2D) {
     ctx.save()
+    this.renderNebulaBands(ctx)
     ctx.strokeStyle = 'rgba(87,255,243,0.08)'
     ctx.lineWidth = 1
     const grid = 240
@@ -4120,8 +4175,63 @@ class VectorShooter {
     for (const s of this.stars) {
       const p = this.worldToScreen(s.x, s.y)
       if (p.x < -10 || p.x > this.width + 10 || p.y < -10 || p.y > this.height + 10) continue
-      ctx.fillStyle = 'rgba(215,255,247,0.5)'
-      ctx.fillRect(p.x, p.y, 1.4, 1.4)
+      const h = hash32(Math.floor(s.x), Math.floor(s.y), 23)
+      const alpha = 0.34 + (h % 50) / 100
+      const size = h % 17 === 0 ? 2.2 : h % 7 === 0 ? 1.7 : 1.15
+      const palette = h % 11 === 0 ? '255,242,122' : h % 5 === 0 ? '185,144,255' : h % 3 === 0 ? '143,255,125' : '215,255,247'
+      ctx.fillStyle = `rgba(${palette},${alpha})`
+      ctx.fillRect(p.x, p.y, size, size)
+    }
+    ctx.restore()
+  }
+
+  private renderNebulaBands(ctx: CanvasRenderingContext2D) {
+    const colors = [
+      [87, 255, 243],
+      [143, 255, 125],
+      [185, 144, 255],
+      [255, 242, 122],
+      [112, 168, 255],
+      [255, 93, 115]
+    ]
+    const minX = Math.floor((this.camera.x - CHUNK_SIZE) / CHUNK_SIZE)
+    const maxX = Math.floor((this.camera.x + this.width + CHUNK_SIZE) / CHUNK_SIZE)
+    const minY = Math.floor((this.camera.y - CHUNK_SIZE) / CHUNK_SIZE)
+    const maxY = Math.floor((this.camera.y + this.height + CHUNK_SIZE) / CHUNK_SIZE)
+    const glow = this.allowGlow()
+    ctx.save()
+    ctx.globalCompositeOperation = glow ? 'screen' : 'source-over'
+    for (let cx = minX; cx <= maxX; cx += 1) {
+      for (let cy = minY; cy <= maxY; cy += 1) {
+        const rng = rngFrom(hash32(cx, cy, 91))
+        if (rng() < 0.46) continue
+        const color = colors[Math.floor(rng() * colors.length)]
+        const accent = colors[Math.floor(rng() * colors.length)]
+        const worldX = cx * CHUNK_SIZE + rng() * CHUNK_SIZE
+        const worldY = cy * CHUNK_SIZE + rng() * CHUNK_SIZE
+        const x = worldX - this.camera.x
+        const y = worldY - this.camera.y
+        const length = CHUNK_SIZE * (0.8 + rng() * 0.75)
+        const breadth = 150 + rng() * 260
+        const angle = rng() * TAU
+        ctx.save()
+        ctx.translate(x, y)
+        ctx.rotate(angle)
+        ctx.filter = `blur(${glow ? 34 : 24}px)`
+        const gradient = ctx.createLinearGradient(-length / 2, 0, length / 2, 0)
+        const alpha = glow ? 0.075 : 0.045
+        gradient.addColorStop(0, `rgba(${color[0]},${color[1]},${color[2]},0)`)
+        gradient.addColorStop(0.36, `rgba(${color[0]},${color[1]},${color[2]},${alpha})`)
+        gradient.addColorStop(0.62, `rgba(${accent[0]},${accent[1]},${accent[2]},${alpha * 0.55})`)
+        gradient.addColorStop(1, `rgba(${accent[0]},${accent[1]},${accent[2]},0)`)
+        ctx.fillStyle = gradient
+        ctx.fillRect(-length / 2, -breadth / 2, length, breadth)
+        if (glow && rng() > 0.55) {
+          ctx.globalAlpha = 0.24
+          ctx.fillRect(-length * 0.35, -breadth * 0.06, length * 0.72, breadth * 0.12)
+        }
+        ctx.restore()
+      }
     }
     ctx.restore()
   }
@@ -4946,7 +5056,8 @@ class VectorShooter {
     const rare = choice.kind !== 'upgrade' || choice.upgrade.rarity < 65
     this.audio.install(this.installCueFor(choice), rare)
     this.camera.shake = Math.max(this.camera.shake, rare ? 10 : 6)
-    const color = choice.kind === 'evolution' || choice.kind === 'relic' ? '#fff27a' : choice.kind === 'limit' ? '#70a8ff' : choice.upgrade.category === 'weapon' ? '#57fff3' : '#8fff7d'
+    const color = choice.kind === 'evolution' || choice.kind === 'relic' ? '#fff27a' : choice.kind === 'limit' ? '#70a8ff' : this.upgradeFxColor(choice.upgrade)
+    button.style.setProperty('--install-color', color)
     const anchor = this.surface?.ship ?? this.player
     this.burst(anchor.x, anchor.y, color, rare ? 28 : 18, rare ? 260 : 190)
     button.classList.add('selected')
