@@ -5302,7 +5302,7 @@ class VectorShooter {
     const logo = document.createElement('img')
     logo.className = 'title-mark'
     logo.src = titleLogoMarkUrl
-    logo.alt = 'Vector Shooter ship emblem'
+    logo.alt = 'Galactic Hordes ship emblem'
     const wordmark = document.createElement('h1')
     wordmark.className = 'title-wordmark'
     wordmark.innerHTML = '<span>GALACTIC</span><span>HORDES</span>'

@@ -1,6 +1,6 @@
-# Vector Shooter
+# Galactic Hordes
 
-Vector Shooter is a mobile-first portrait survival shooter: Vampire Survivors pressure, Asteroids movement, and Vectrex-style vector graphics. The ship auto-fires, so the player focuses on steering through hordes, landing on planets, salvaging mystery caches, and evolving the build at the ship workbench.
+Galactic Hordes is a mobile-first portrait survival shooter: Vampire Survivors pressure, Asteroids movement, and Vectrex-style vector graphics. The ship auto-fires, so the player focuses on steering through hordes, landing on planets, salvaging mystery caches, and evolving the build at the ship workbench.
 
 ## Current Prototype
 
@@ -64,7 +64,7 @@ Choose a mode from the title screen:
 
 ## Upgrade Loop
 
-Vector Shooter does not open upgrade choices immediately on level-up. XP banks mutation signals. To spend them:
+Galactic Hordes does not open upgrade choices immediately on level-up. XP banks mutation signals. To spend them:
 
 1. Survive in space and collect XP shards.
 2. Land on a planet.

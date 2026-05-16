@@ -1,6 +1,6 @@
-# Vector Shooter Upgrade Progression Design
+# Galactic Hordes Upgrade Progression Design
 
-Vector Shooter uses Vampire Survivors-style build pressure, but moves the upgrade moment to the ship workbench after planet salvage. XP banks mutation signals. Planets create uncertainty. The workbench creates commitment.
+Galactic Hordes uses Vampire Survivors-style build pressure, but moves the upgrade moment to the ship workbench after planet salvage. XP banks mutation signals. Planets create uncertainty. The workbench creates commitment.
 
 ## Core Loop
 

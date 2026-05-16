@@ -6,14 +6,14 @@ This project uses generated catalog sheets rather than one-off character files. 
 
 Use this workflow for planet bosses, friendly alien NPCs, surface creatures, relic guardians, or future encounter catalogs that should share the current neon Vectrex look.
 
-The existing `game-character-64` skill is good for 64x64 pixel-art RPG characters. Vector Shooter needs larger transparent neon catalog sheets, so this workflow is the local repeatable pattern for this game.
+The existing `game-character-64` skill is good for 64x64 pixel-art RPG characters. Galactic Hordes needs larger transparent neon catalog sheets, so this workflow is the local repeatable pattern for this game.
 
 ## Economical Prompt Pattern
 
 Generate five creatures per sheet, four animation poses per creature:
 
 ```text
-Create a clean game sprite sheet for Vector Shooter, a portrait mobile survival shooter with black-space Vectrex vector graphics.
+Create a clean game sprite sheet for Galactic Hordes, a portrait mobile survival shooter with black-space Vectrex vector graphics.
 Style: glowing neon line art, transparent-feeling black background, simple readable silhouettes, crisp vector strokes, arcade sci-fi, no text, no UI, no scenery.
 Layout: exactly 5 rows and 4 columns. Each row is one character. Each column is a subtle animation pose/frame.
 Characters: [list five concrete creature concepts].
