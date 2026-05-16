@@ -7,7 +7,7 @@ import titleLogoMarkUrl from './assets/title-logo-mark.png'
 
 type GameState = 'title' | 'playing' | 'paused' | 'levelup' | 'planet' | 'landing' | 'surface' | 'alien' | 'takeoff' | 'gameover' | 'scores'
 type PickupKind = 'xp' | 'repair' | 'magnet' | 'core' | 'chest'
-type EnemyKind = 'chaser' | 'splinter' | 'lancer' | 'mine' | 'warden'
+type EnemyKind = 'chaser' | 'splinter' | 'lancer' | 'mine' | 'brute' | 'shooter' | 'warden'
 type SurfaceResourceKind = 'crystal' | 'scrap' | 'repair' | 'cache'
 type GraphicsMode = 'LOW' | 'MED' | 'GLOW'
 type UpgradeCategory = 'weapon' | 'system'
@@ -16,6 +16,7 @@ type LimitId = 'might' | 'cooldown' | 'amount' | 'speed' | 'magnet' | 'hull'
 type SurfaceEventKind = 'jackpot' | 'swarm' | 'relic' | 'repair' | 'volatile' | 'standard'
 type SurfaceScenarioKind = 'salvage' | 'boss' | 'friendly' | 'mixed'
 type AlienGiftKind = 'herb' | 'idol' | 'map' | 'coin'
+type WorkbenchView = 'upgrades' | 'manifest'
 type UpgradeId =
   | 'rapid'
   | 'split'
@@ -687,6 +688,7 @@ class VectorShooter {
   private toastText = ''
   private upgradeChoices: WorkbenchChoice[] = []
   private workbenchInstalling = false
+  private workbenchView: WorkbenchView = 'upgrades'
   private planetChoice: Planet | null = null
   private alienChoice: SurfaceAlien | null = null
   private transitionTimer = 0
@@ -1605,6 +1607,35 @@ class VectorShooter {
       if (e.kind === 'chaser' || e.kind === 'splinter') {
         e.vx += toP.x * e.speed * 3.4 * hunger * dt
         e.vy += toP.y * e.speed * 3.4 * hunger * dt
+      } else if (e.kind === 'brute') {
+        e.vx += toP.x * e.speed * 2.15 * hunger * dt
+        e.vy += toP.y * e.speed * 2.15 * hunger * dt
+      } else if (e.kind === 'shooter') {
+        const d = Math.sqrt(dist2(e, this.player))
+        const side = { x: -toP.y, y: toP.x }
+        const rangePull = d > 560 ? 1 : d < 360 ? -1.35 : 0.1
+        e.vx += (toP.x * rangePull * e.speed + side.x * e.speed * 0.55) * dt
+        e.vy += (toP.y * rangePull * e.speed + side.y * e.speed * 0.55) * dt
+        if (e.cd <= 0 && d < 760) {
+          e.cd = clamp(2.35 - this.stats.time / 260, 1.35, 2.35)
+          const spread = this.stats.time > 210 ? 0.18 : 0
+          for (let shot = spread ? -1 : 0; shot <= (spread ? 1 : 0); shot += 1) {
+            const a = Math.atan2(toP.y, toP.x) + shot * spread
+            this.bullets.push({
+              x: e.x + Math.cos(a) * e.radius,
+              y: e.y + Math.sin(a) * e.radius,
+              vx: Math.cos(a) * 310,
+              vy: Math.sin(a) * 310,
+              life: 1.8,
+              damage: 10,
+              radius: 4,
+              color: '#ff61d8',
+              pierce: 0,
+              hostile: true
+            })
+          }
+          this.burst(e.x, e.y, '#ff61d8', 5, 100)
+        }
       } else if (e.kind === 'lancer') {
         const d = Math.sqrt(dist2(e, this.player))
         if (e.cd <= 0 && d < 520) {
@@ -1647,7 +1678,7 @@ class VectorShooter {
           }
         }
       }
-      const max = e.kind === 'lancer' ? 460 : e.speed
+      const max = e.kind === 'lancer' ? 460 : e.kind === 'brute' ? e.speed * 0.84 : e.speed
       const s = len(e.vx, e.vy)
       if (s > max) {
         e.vx = (e.vx / s) * max
@@ -1660,8 +1691,11 @@ class VectorShooter {
 
       const rr = e.radius + this.player.radius
       if (dist2(e, this.player) < rr * rr) {
-        this.damagePlayer(e.kind === 'warden' ? 24 : 13)
-        if (e.kind !== 'warden') this.killEnemy(e, false)
+        this.damagePlayer(e.kind === 'warden' ? 24 : e.kind === 'brute' ? 19 : 13)
+        if (e.kind === 'brute') {
+          e.vx -= toP.x * 260
+          e.vy -= toP.y * 260
+        } else if (e.kind !== 'warden') this.killEnemy(e, false)
       }
     }
   }
@@ -1741,8 +1775,9 @@ class VectorShooter {
       for (let i = 0; i < Math.min(pack, room); i += 1) this.spawnEnemy(this.pickEnemyKind())
     }
     if (this.bossTimer <= 0) {
-      this.bossTimer = 95
+      this.bossTimer = clamp(95 - this.stats.time / 7, 46, 95)
       this.spawnEnemy('warden')
+      if (this.stats.time > 180 && this.enemies.length < MAX_ENEMIES - 2) this.spawnEnemy(Math.random() < 0.55 ? 'brute' : 'shooter')
       this.toast('WARDEN VECTOR ENTERING THE FIELD')
     }
     if (this.chestTimer <= 0) {
@@ -1756,22 +1791,26 @@ class VectorShooter {
   private pickEnemyKind(): EnemyKind {
     const t = this.stats.time
     const r = Math.random()
-    if (t > 100 && r < 0.08) return 'mine'
-    if (t > 55 && r < 0.2) return 'lancer'
-    if (t > 25 && r < 0.38) return 'splinter'
+    if (t > 180 && r < 0.13) return 'brute'
+    if (t > 120 && r < 0.22) return 'shooter'
+    if (t > 100 && r < 0.31) return 'mine'
+    if (t > 55 && r < 0.44) return 'lancer'
+    if (t > 25 && r < 0.62) return 'splinter'
     return 'chaser'
   }
 
   private spawnEnemy(kind: EnemyKind) {
     if (this.enemies.length >= MAX_ENEMIES) return
     const p = this.randomNearPlayer(620, 980)
-    const scale = 1 + this.stats.time / 220 + this.stats.planets * 0.08
+    const scale = 1.12 + this.stats.time / 200 + this.stats.planets * 0.1
     const base = {
-      chaser: { hp: 28, r: 17, speed: 120, value: 7, color: '#8fff7d' },
-      splinter: { hp: 18, r: 14, speed: 155, value: 5, color: '#70a8ff' },
-      lancer: { hp: 48, r: 18, speed: 150, value: 13, color: '#fff27a' },
-      mine: { hp: 36, r: 22, speed: 65, value: 10, color: '#ff5d73' },
-      warden: { hp: 420, r: 48, speed: 130, value: 90, color: '#b990ff' }
+      chaser: { hp: 34, r: 17, speed: 123, value: 7, color: '#8fff7d' },
+      splinter: { hp: 23, r: 14, speed: 158, value: 5, color: '#70a8ff' },
+      lancer: { hp: 60, r: 18, speed: 154, value: 13, color: '#fff27a' },
+      mine: { hp: 46, r: 22, speed: 68, value: 10, color: '#ff5d73' },
+      brute: { hp: 170, r: 34, speed: 98, value: 24, color: '#ff9d5c' },
+      shooter: { hp: 72, r: 21, speed: 118, value: 18, color: '#ff61d8' },
+      warden: { hp: 520, r: 50, speed: 134, value: 90, color: '#b990ff' }
     }[kind]
     this.enemies.push({
       id: this.enemyId++,
@@ -1812,7 +1851,7 @@ class VectorShooter {
 
   private killEnemy(e: Enemy, reward: boolean) {
     this.removeEnemy(e)
-    const big = e.kind === 'warden'
+    const big = e.kind === 'warden' || e.kind === 'brute'
     const highLoad = this.isHighLoad()
     if (big || !highLoad || this.collisionFxCooldown <= 0) {
       this.audio.boom(big)
@@ -1823,9 +1862,9 @@ class VectorShooter {
     if (reward) {
       this.stats.kills += 1
       this.stats.score += e.value
-      const xpCount = e.kind === 'warden' ? 18 : e.kind === 'lancer' ? 4 : 2
+      const xpCount = e.kind === 'warden' ? 9 : e.kind === 'brute' ? 3 : e.kind === 'shooter' || e.kind === 'lancer' ? 2 : 1
       const xpDrops = highLoad && e.kind !== 'warden' ? 1 : xpCount
-      const xpValue = e.kind === 'warden' ? 8 : highLoad ? 3 * xpCount : 3
+      const xpValue = e.kind === 'warden' ? 8 : e.kind === 'brute' ? 4 : highLoad ? 3 * xpCount : 3
       for (let i = 0; i < xpDrops; i += 1) this.drop('xp', e.x, e.y, xpValue)
       if (e.kind === 'warden') this.drop('chest', e.x, e.y, 1)
       if (e.kind === 'splinter' && this.enemies.length < MAX_ENEMIES - 3 && Math.random() < 0.55) {
@@ -1941,6 +1980,7 @@ class VectorShooter {
     this.state = 'levelup'
     this.audio.level()
     this.workbenchInstalling = false
+    this.workbenchView = 'upgrades'
     const count = 3 + (rare || Math.random() < 0.08 + this.build.luck * 0.08 ? 1 : 0)
     this.upgradeChoices = this.rollUpgrades(count, rare)
     this.renderLevelUp(title, copy)
@@ -2016,6 +2056,11 @@ class VectorShooter {
 
   private applyWorkbenchChoice(choice: WorkbenchChoice) {
     this.workbenchInstalling = false
+    if (!this.canApplyWorkbenchChoice(choice)) {
+      this.toast('SIGNAL REJECTED: SYSTEM ALREADY MAXED')
+      this.openLevelUp('SHIPBOARD WORKBENCH', `${this.pendingUpgrades} mutation signal${this.pendingUpgrades === 1 ? '' : 's'} remain before takeoff.`)
+      return
+    }
     if (choice.kind === 'upgrade') this.applyUpgrade(choice.upgrade)
     else if (choice.kind === 'evolution') this.applyEvolution(choice.evolution)
     else if (choice.kind === 'relic') this.acquireRelic(choice.relic, 'WORKBENCH RELIC INSTALLED')
@@ -2035,7 +2080,12 @@ class VectorShooter {
   }
 
   private applyUpgrade(upgrade: Upgrade) {
-    this.build[upgrade.id] += 1
+    const nextLevel = Math.min(this.build[upgrade.id] + 1, upgrade.max)
+    if (nextLevel === this.build[upgrade.id]) {
+      this.toast(`${upgrade.name.toUpperCase()} ALREADY MAXED`)
+      return
+    }
+    this.build[upgrade.id] = nextLevel
     if (upgrade.id === 'engine') this.player.speed += 18
     if (upgrade.id === 'shield') {
       this.player.maxShield += 18
@@ -3616,7 +3666,7 @@ class VectorShooter {
       ctx.strokeStyle = e.flash > 0 ? '#ffffff' : e.color
       ctx.shadowColor = e.color
       ctx.shadowBlur = this.allowGlow() ? 12 : 0
-      ctx.lineWidth = e.kind === 'warden' ? 3 : 2
+      ctx.lineWidth = e.kind === 'warden' || e.kind === 'brute' ? 3 : 2
       ctx.beginPath()
       if (e.kind === 'chaser') {
         for (let i = 0; i < 5; i += 1) {
@@ -3646,6 +3696,21 @@ class VectorShooter {
           if (i === 0) ctx.moveTo(x, y)
           else ctx.lineTo(x, y)
         }
+      } else if (e.kind === 'brute') {
+        for (let i = 0; i < 8; i += 1) {
+          const a = (i / 8) * TAU
+          const r = i % 2 ? e.radius * 0.7 : e.radius
+          const x = Math.cos(a) * r
+          const y = Math.sin(a) * r
+          if (i === 0) ctx.moveTo(x, y)
+          else ctx.lineTo(x, y)
+        }
+      } else if (e.kind === 'shooter') {
+        ctx.moveTo(e.radius, 0)
+        ctx.lineTo(e.radius * 0.25, e.radius * 0.72)
+        ctx.lineTo(-e.radius * 0.85, e.radius * 0.44)
+        ctx.lineTo(-e.radius * 0.85, -e.radius * 0.44)
+        ctx.lineTo(e.radius * 0.25, -e.radius * 0.72)
       } else {
         for (let i = 0; i < 9; i += 1) {
           const a = (i / 9) * TAU
@@ -3663,6 +3728,10 @@ class VectorShooter {
         ctx.beginPath()
         ctx.arc(0, 0, e.radius + 13, 0, TAU)
         ctx.stroke()
+      } else if (e.kind === 'shooter') {
+        ctx.beginPath()
+        ctx.arc(0, 0, e.radius * 0.42, 0, TAU)
+        ctx.stroke()
       }
       ctx.restore()
     }
@@ -3678,7 +3747,9 @@ class VectorShooter {
     this.strokeEnemyBatch(ctx, camX, camY, 'splinter', '#70a8ff')
     this.strokeEnemyBatch(ctx, camX, camY, 'lancer', '#fff27a')
     this.strokeEnemyBatch(ctx, camX, camY, 'mine', '#ff5d73')
+    this.strokeEnemyBatch(ctx, camX, camY, 'shooter', '#ff61d8')
     ctx.lineWidth = 2.4
+    this.strokeEnemyBatch(ctx, camX, camY, 'brute', '#ff9d5c')
     this.strokeEnemyBatch(ctx, camX, camY, 'warden', '#b990ff')
     ctx.lineWidth = 1.8
     ctx.strokeStyle = '#ffffff'
@@ -3724,6 +3795,27 @@ class VectorShooter {
       ctx.closePath()
     } else if (e.kind === 'mine') {
       ctx.rect(x - r * 0.58, y - r * 0.58, r * 1.16, r * 1.16)
+    } else if (e.kind === 'brute') {
+      ctx.moveTo(x + r, y)
+      for (let i = 1; i < 8; i += 1) {
+        const a = (i / 8) * TAU
+        const rr = i % 2 ? r * 0.7 : r
+        ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr)
+      }
+      ctx.closePath()
+    } else if (e.kind === 'shooter') {
+      const dx = this.player.x - e.x
+      const dy = this.player.y - e.y
+      const m = Math.hypot(dx, dy) || 1
+      const ux = dx / m
+      const uy = dy / m
+      const px = -uy
+      const py = ux
+      ctx.moveTo(x + ux * r, y + uy * r)
+      ctx.lineTo(x + px * r * 0.72 - ux * r * 0.25, y + py * r * 0.72 - uy * r * 0.25)
+      ctx.lineTo(x - ux * r * 0.88, y - uy * r * 0.88)
+      ctx.lineTo(x - px * r * 0.72 - ux * r * 0.25, y - py * r * 0.72 - uy * r * 0.25)
+      ctx.closePath()
     } else if (e.kind === 'warden') {
       ctx.moveTo(x + r, y)
       ctx.arc(x, y, r, 0, TAU)
@@ -3753,6 +3845,20 @@ class VectorShooter {
       ctx.lineTo(-r * 0.8, r * 0.45)
     } else if (e.kind === 'mine') {
       ctx.rect(-r * 0.55, -r * 0.55, r * 1.1, r * 1.1)
+    } else if (e.kind === 'brute') {
+      ctx.moveTo(r, 0)
+      for (let i = 1; i < 8; i += 1) {
+        const a = (i / 8) * TAU
+        const rr = i % 2 ? r * 0.7 : r
+        ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr)
+      }
+      ctx.closePath()
+    } else if (e.kind === 'shooter') {
+      ctx.moveTo(r, 0)
+      ctx.lineTo(r * 0.22, r * 0.72)
+      ctx.lineTo(-r * 0.9, 0)
+      ctx.lineTo(r * 0.22, -r * 0.72)
+      ctx.closePath()
     } else {
       ctx.moveTo(0, -r)
       ctx.lineTo(r, 0)
@@ -4084,25 +4190,57 @@ class VectorShooter {
     const p = document.createElement('p')
     p.className = 'copy'
     p.textContent = copy
+    const tabs = document.createElement('div')
+    tabs.className = 'workbench-tabs'
+    const upgradesTab = document.createElement('button')
+    upgradesTab.className = `workbench-tab ${this.workbenchView === 'upgrades' ? 'active' : ''}`
+    upgradesTab.textContent = 'Upgrades'
+    upgradesTab.addEventListener('click', () => {
+      if (this.workbenchInstalling || this.workbenchView === 'upgrades') return
+      this.workbenchView = 'upgrades'
+      this.renderLevelUp(title, copy)
+    })
+    const manifestTab = document.createElement('button')
+    manifestTab.className = `workbench-tab ${this.workbenchView === 'manifest' ? 'active' : ''}`
+    manifestTab.textContent = 'Manifest'
+    manifestTab.addEventListener('click', () => {
+      if (this.workbenchInstalling || this.workbenchView === 'manifest') return
+      this.workbenchView = 'manifest'
+      this.renderLevelUp(title, copy)
+    })
+    tabs.append(upgradesTab, manifestTab)
+    const view = document.createElement('div')
+    view.className = `workbench-view ${this.workbenchView}`
     const grid = document.createElement('div')
     grid.className = 'choice-grid'
     for (const choice of this.upgradeChoices) {
       const button = document.createElement('button')
       button.className = `choice ${choice.kind}`
       button.innerHTML = this.choiceMarkup(choice)
+      button.disabled = !this.canApplyWorkbenchChoice(choice)
       button.addEventListener('click', () => this.beginWorkbenchInstall(choice, button))
       grid.append(button)
     }
     const banner = document.createElement('div')
     banner.className = 'install-banner'
     banner.textContent = 'INSTALLING MUTATION...'
-    panel.append(h, p, grid, banner, this.renderBuildManifest())
+    if (this.workbenchView === 'upgrades') view.append(grid, banner)
+    else view.append(this.renderBuildManifest())
+    panel.append(h, p, tabs, view)
     this.ui.levelup.append(panel)
     this.showOnly('levelup')
   }
 
   private beginWorkbenchInstall(choice: WorkbenchChoice, button: HTMLButtonElement) {
     if (this.workbenchInstalling) return
+    if (!this.canApplyWorkbenchChoice(choice)) {
+      button.disabled = true
+      button.classList.add('invalid')
+      this.toast('SYSTEM ALREADY MAXED')
+      this.upgradeChoices = this.rollUpgrades(this.upgradeChoices.length || 3)
+      this.renderLevelUp('SHIPBOARD WORKBENCH', `${this.pendingUpgrades} mutation signal${this.pendingUpgrades === 1 ? '' : 's'} remain before takeoff.`)
+      return
+    }
     this.workbenchInstalling = true
     const rare = choice.kind !== 'upgrade' || choice.upgrade.rarity < 65
     this.audio.install(rare)
@@ -4118,6 +4256,16 @@ class VectorShooter {
       banner.classList.add('visible')
     }
     window.setTimeout(() => this.applyWorkbenchChoice(choice), rare ? 760 : 560)
+  }
+
+  private canApplyWorkbenchChoice(choice: WorkbenchChoice) {
+    if (choice.kind === 'upgrade') return this.build[choice.upgrade.id] < choice.upgrade.max
+    if (choice.kind === 'evolution') {
+      const upgrade = upgrades.find((candidate) => candidate.id === choice.evolution.weapon)
+      return !!upgrade && this.build[choice.evolution.weapon] >= upgrade.max && this.relics.has(choice.evolution.relic) && !this.evolved.has(choice.evolution.weapon)
+    }
+    if (choice.kind === 'relic') return !this.relics.has(choice.relic.id)
+    return true
   }
 
   private choiceTitle(choice: WorkbenchChoice) {
@@ -4210,17 +4358,6 @@ class VectorShooter {
     logo.className = 'title-mark'
     logo.src = titleLogoMarkUrl
     logo.alt = 'Vector Shooter ship emblem'
-    const h = document.createElement('h1')
-    h.className = 'title-wordmark'
-    h.innerHTML = '<span>VECTOR</span><span>SHOOTER</span>'
-    const k = document.createElement('p')
-    k.className = 'title-kicker'
-    k.textContent = 'SURVIVE / LAND / MUTATE'
-    const grid = document.createElement('div')
-    grid.className = 'title-stack'
-    const copy = document.createElement('p')
-    copy.className = 'title-copy'
-    copy.textContent = 'Drift through endless vector space, cut through the horde, land on strange planets, and gamble your salvage into a better ship.'
     const row = document.createElement('div')
     row.className = 'title-actions'
     const start = document.createElement('button')
@@ -4232,34 +4369,7 @@ class VectorShooter {
     scores.textContent = 'Scores'
     scores.addEventListener('click', () => this.showScores())
     row.append(start, scores)
-    const quick = document.createElement('div')
-    quick.className = 'title-quick'
-    quick.innerHTML = `
-      <span>AUTO-FIRE</span>
-      <span>PLANET RUNS</span>
-      <span>BOSS SIGNALS</span>
-    `
-    const graphics = document.createElement('div')
-    graphics.className = 'graphics-row'
-    const modeLabels: Record<GraphicsMode, string> = { LOW: 'SMOOTH', MED: 'SHARP', GLOW: 'GLOW' }
-    ;(['LOW', 'MED', 'GLOW'] as GraphicsMode[]).forEach((mode) => {
-      const button = document.createElement('button')
-      button.className = `vector-button tiny ${this.graphicsMode === mode ? 'active' : 'secondary'}`
-      button.textContent = modeLabels[mode]
-      button.addEventListener('click', () => {
-        this.setGraphicsMode(mode)
-        this.showTitle()
-      })
-      graphics.append(button)
-    })
-    const meta = document.createElement('div')
-    meta.className = 'title-meta'
-    meta.innerHTML = `
-      <div><b>HIGH SCORE</b><span>${Math.floor(this.stats.highScore)}</span></div>
-      <div><b>INPUT</b><span>TOUCH / PAD / KEYS</span></div>
-    `
-    grid.append(copy, row, quick, graphics, meta)
-    panel.append(logo, h, k, grid)
+    panel.append(logo, row)
     this.ui.title.append(panel)
     this.showOnly('title')
   }
