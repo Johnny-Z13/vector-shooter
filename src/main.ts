@@ -1186,7 +1186,7 @@ class VectorShooter {
     const name = chunkX === 0 && chunkY === 0 && index === 0 ? 'LUX MORGUE' : `${prefix[Math.floor(rng() * prefix.length)]} ${suffix[Math.floor(rng() * suffix.length)]}`
     const margin = 420
     const centerBias = chunkX === 0 && chunkY === 0 && index === 0
-    const radius = 82 + rng() * 72
+    const radius = 92 + rng() * 80
     let x = centerBias ? 720 : chunkX * CHUNK_SIZE + margin + rng() * (CHUNK_SIZE - margin * 2)
     let y = centerBias ? 220 : chunkY * CHUNK_SIZE + margin + rng() * (CHUNK_SIZE - margin * 2)
     if (!centerBias) {
@@ -4174,6 +4174,7 @@ class VectorShooter {
   private renderBackground(ctx: CanvasRenderingContext2D) {
     ctx.save()
     this.renderNebulaBands(ctx)
+    this.renderSectorLandmarks(ctx)
     ctx.strokeStyle = 'rgba(87,255,243,0.08)'
     ctx.lineWidth = 1
     const grid = 240
@@ -4223,6 +4224,95 @@ class VectorShooter {
       const palette = h % 11 === 0 ? '255,242,122' : h % 5 === 0 ? '185,144,255' : h % 3 === 0 ? '143,255,125' : '215,255,247'
       ctx.fillStyle = `rgba(${palette},${alpha})`
       ctx.fillRect(p.x, p.y, size, size)
+    }
+    ctx.restore()
+  }
+
+  private renderSectorLandmarks(ctx: CanvasRenderingContext2D) {
+    const colors = [
+      [87, 255, 243],
+      [143, 255, 125],
+      [185, 144, 255],
+      [255, 242, 122],
+      [112, 168, 255],
+      [255, 93, 115]
+    ]
+    const landmarkGrid = 820
+    const minX = Math.floor((this.camera.x - landmarkGrid) / landmarkGrid)
+    const maxX = Math.floor((this.camera.x + this.width + landmarkGrid) / landmarkGrid)
+    const minY = Math.floor((this.camera.y - landmarkGrid) / landmarkGrid)
+    const maxY = Math.floor((this.camera.y + this.height + landmarkGrid) / landmarkGrid)
+    const glow = this.allowGlow()
+    ctx.save()
+    ctx.globalCompositeOperation = glow ? 'screen' : 'source-over'
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+    for (let gx = minX; gx <= maxX; gx += 1) {
+      for (let gy = minY; gy <= maxY; gy += 1) {
+        const rng = rngFrom(hash32(gx, gy, 177))
+        if (rng() < 0.16) continue
+        const color = colors[Math.floor(rng() * colors.length)]
+        const accent = colors[Math.floor(rng() * colors.length)]
+        const alpha = glow ? 0.22 : 0.13
+        const landmarkCount = 1 + Math.floor(rng() * 2)
+        for (let i = 0; i < landmarkCount; i += 1) {
+          const worldX = gx * landmarkGrid + rng() * landmarkGrid
+          const worldY = gy * landmarkGrid + rng() * landmarkGrid
+          const x = worldX - this.camera.x
+          const y = worldY - this.camera.y
+          const kind = Math.floor(rng() * 4)
+          ctx.save()
+          ctx.translate(x, y)
+          ctx.rotate(rng() * TAU)
+          ctx.shadowColor = `rgba(${color[0]},${color[1]},${color[2]},0.34)`
+          ctx.shadowBlur = glow ? 12 : 0
+          if (kind === 0) {
+            const radius = 62 + rng() * 110
+            ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha * 0.72})`
+            ctx.lineWidth = 1.2
+            ctx.beginPath()
+            ctx.ellipse(0, 0, radius * (1.3 + rng() * 0.7), radius * (0.18 + rng() * 0.18), 0, 0, TAU)
+            ctx.stroke()
+            ctx.strokeStyle = `rgba(${accent[0]},${accent[1]},${accent[2]},${alpha * 0.42})`
+            ctx.beginPath()
+            ctx.arc(0, 0, radius * 0.32, rng() * TAU, rng() * TAU + TAU * (0.34 + rng() * 0.3))
+            ctx.stroke()
+          } else if (kind === 1) {
+            const length = 160 + rng() * 280
+            ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha * 0.62})`
+            ctx.lineWidth = 1 + rng() * 1.4
+            ctx.beginPath()
+            ctx.moveTo(-length / 2, 0)
+            ctx.lineTo(length / 2, 0)
+            ctx.stroke()
+            ctx.strokeStyle = `rgba(${accent[0]},${accent[1]},${accent[2]},${alpha * 0.36})`
+            ctx.lineWidth = 1
+            ctx.beginPath()
+            ctx.moveTo(-length * 0.36, 16)
+            ctx.lineTo(length * 0.42, 16)
+            ctx.stroke()
+          } else if (kind === 2) {
+            const radius = 54 + rng() * 88
+            ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha * 0.54})`
+            ctx.lineWidth = 1
+            for (let j = 0; j < 3; j += 1) {
+              ctx.beginPath()
+              ctx.arc(0, 0, radius * (0.48 + j * 0.24), rng() * TAU, rng() * TAU + TAU * (0.18 + rng() * 0.24))
+              ctx.stroke()
+            }
+          } else {
+            const points = 7 + Math.floor(rng() * 8)
+            ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha * 0.56})`
+            for (let j = 0; j < points; j += 1) {
+              const a = rng() * TAU
+              const d = rng() * 90
+              const size = 1 + rng() * 1.8
+              ctx.fillRect(Math.cos(a) * d, Math.sin(a) * d, size, size)
+            }
+          }
+          ctx.restore()
+        }
+      }
     }
     ctx.restore()
   }
