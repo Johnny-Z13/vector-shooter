@@ -4875,7 +4875,7 @@ class VectorShooter {
       const ready = maxed && catalyst && this.relics.has(catalyst.id) && !evolved
       const chip = document.createElement('div')
       chip.className = `manifest-chip ${level > 0 ? 'owned' : 'locked'} ${maxed ? 'maxed' : ''} ${ready ? 'ready' : ''} ${evolved ? 'evolved' : ''}`
-      const route = evolved ? 'EVOLVED' : ready ? 'EVOLUTION READY' : catalyst ? `CATALYST: ${catalyst.name}` : this.bucketLabel(upgrade.bucket)
+      const route = evolved ? 'EVOLVED' : ready ? 'EVOLUTION READY' : catalyst ? `CATALYST: ${catalyst.name}` : upgrade.category === 'weapon' ? 'WEAPON SYSTEM' : 'SHIP SYSTEM'
       chip.innerHTML = `
         <div class="manifest-chip-head">
           <strong>${this.escape(upgrade.name)}</strong>
