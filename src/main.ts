@@ -1,5 +1,7 @@
 import './style.css'
 import glassMiteOracleSheetUrl from './assets/glass-mite-oracle-sheet-alpha.png'
+import planetAlienCatalogUrl from './assets/planet-alien-catalog-alpha.png'
+import planetBossCatalogUrl from './assets/planet-boss-catalog-alpha.png'
 import surfaceSpacemanSheetUrl from './assets/surface-spaceman-sheet-alpha.png'
 
 type GameState = 'title' | 'playing' | 'paused' | 'levelup' | 'planet' | 'landing' | 'surface' | 'alien' | 'takeoff' | 'gameover' | 'scores'
@@ -11,6 +13,7 @@ type UpgradeCategory = 'weapon' | 'system'
 type RelicId = 'staticIdol' | 'glassReactor' | 'deadSunCoin' | 'hungryCompass' | 'blackBoxSaint' | 'mirrorSeed' | 'saintCapacitor' | 'forbiddenMap'
 type LimitId = 'might' | 'cooldown' | 'amount' | 'speed' | 'magnet' | 'hull'
 type SurfaceEventKind = 'jackpot' | 'swarm' | 'relic' | 'repair' | 'volatile' | 'standard'
+type SurfaceScenarioKind = 'salvage' | 'boss' | 'friendly' | 'mixed'
 type AlienGiftKind = 'herb' | 'idol' | 'map' | 'coin'
 type UpgradeId =
   | 'rapid'
@@ -153,7 +156,9 @@ interface SurfaceThreat {
   phase: number
   color: string
   hit: number
-  sprite?: 'glassMiteOracle'
+  sprite?: 'glassMiteOracle' | 'bossCatalog'
+  spriteRow?: number
+  boss?: boolean
 }
 
 interface SurfaceBullet {
@@ -176,11 +181,14 @@ interface SurfaceAlien {
   name: string
   gift: AlienGiftKind
   resolved: boolean
+  sprite?: 'alienCatalog'
+  spriteRow?: number
 }
 
 interface SurfaceRun {
   planet: Planet
   event: SurfaceEventKind
+  scenario: SurfaceScenarioKind
   width: number
   height: number
   pilot: {
@@ -486,6 +494,10 @@ const evolutions: Evolution[] = upgrades
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
+const BOSS_CATALOG_ROWS = 5
+const BOSS_CATALOG_FRAMES = 4
+const ALIEN_CATALOG_ROWS = 5
+const ALIEN_CATALOG_FRAMES = 4
 const dist2 = (a: Vec, b: Vec) => {
   const dx = a.x - b.x
   const dy = a.y - b.y
@@ -504,6 +516,14 @@ const hash32 = (x: number, y: number, salt = 0) => {
   let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(salt, 2246822519)
   h = Math.imul(h ^ (h >>> 13), 1274126177)
   return (h ^ (h >>> 16)) >>> 0
+}
+const hashString = (value: string, salt = 0) => {
+  let h = 2166136261 ^ salt
+  for (let i = 0; i < value.length; i += 1) {
+    h ^= value.charCodeAt(i)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
 }
 const rngFrom = (seed: number) => {
   let t = seed >>> 0
@@ -657,6 +677,8 @@ class VectorShooter {
   private audio = new AudioDirector()
   private camera = { x: 0, y: 0, shake: 0 }
   private glassMiteOracleSheet = new Image()
+  private planetAlienCatalog = new Image()
+  private planetBossCatalog = new Image()
   private surfaceSpacemanSheet = new Image()
   private scoreSaved = false
   private scoreName = 'ACE'
@@ -770,6 +792,8 @@ class VectorShooter {
     this.resize()
     this.bind()
     this.glassMiteOracleSheet.src = glassMiteOracleSheetUrl
+    this.planetAlienCatalog.src = planetAlienCatalogUrl
+    this.planetBossCatalog.src = planetBossCatalogUrl
     this.surfaceSpacemanSheet.src = surfaceSpacemanSheetUrl
     this.highs = this.loadScores()
     this.stats.highScore = this.highs[0]?.score ?? 0
@@ -2043,7 +2067,9 @@ class VectorShooter {
     const resources: SurfaceResource[] = []
     const first = !planet.visited
     const event = this.rollSurfaceEvent(planet, first)
+    const scenario = this.rollSurfaceScenario(planet, event, first)
     const count =
+      scenario === 'friendly' ? 9 + Math.floor(Math.random() * 7) :
       event === 'jackpot' ? 28 + Math.floor(Math.random() * 14) :
       event === 'relic' ? 12 + Math.floor(Math.random() * 6) :
       event === 'repair' ? 8 + Math.floor(Math.random() * 5) :
@@ -2075,29 +2101,24 @@ class VectorShooter {
     }
     const threats: SurfaceThreat[] = []
     const threatCount =
-      event === 'swarm' ? 12 + Math.floor(this.stats.time / 35) :
-      event === 'volatile' ? 5 + Math.floor(this.stats.time / 70) :
+      scenario === 'friendly' ? (event === 'swarm' ? 4 : Math.random() < 0.18 ? 1 : 0) :
+      scenario === 'salvage' ? (event === 'swarm' ? 7 + Math.floor(this.stats.time / 55) : Math.random() < 0.32 ? 1 : 0) :
+      event === 'swarm' ? 10 + Math.floor(this.stats.time / 45) :
+      event === 'volatile' ? 4 + Math.floor(this.stats.time / 80) :
       (first ? 1 : 0) + (Math.random() < 0.45 || planet.name === 'NULL CATHEDRAL' ? 1 : 0)
     for (let i = 0; i < threatCount; i += 1) {
-      const a = (i / Math.max(1, threatCount)) * TAU + rand(-0.25, 0.25)
-      const r = event === 'swarm' ? rand(260, 520) : rand(120, 440)
-      threats.push({
-        x: clamp(800 + Math.cos(a) * r, 90, 1510),
-        y: clamp(590 + Math.sin(a) * r, 90, 1090),
-        vx: 0,
-        vy: 0,
-        hp: event === 'swarm' ? 20 + this.stats.time * 0.12 : planet.name === 'NULL CATHEDRAL' ? 46 : 28,
-        radius: event === 'swarm' ? 13 : planet.name === 'NULL CATHEDRAL' ? 22 : 16,
-        phase: rand(0, TAU),
-        color: planet.name === 'RED MERCY' || planet.name === 'NULL CATHEDRAL' ? '#ff5d73' : '#fff27a',
-        hit: 0
-      })
+      threats.push(this.createGenericSurfaceThreat(planet, event, i, threatCount))
     }
-    threats.push(this.createGlassMiteOracleThreat())
-    const aliens = this.createSurfaceAliens(event, threatCount)
+    if (scenario === 'boss' || scenario === 'mixed') {
+      threats.push(this.createPlanetBossThreat(planet, scenario === 'mixed'))
+    } else if (event === 'volatile' && first && Math.random() < 0.18) {
+      threats.push(this.createGlassMiteOracleThreat())
+    }
+    const aliens = this.createSurfaceAliens(planet, event, threatCount, scenario)
     return {
       planet,
       event,
+      scenario,
       width: 1600,
       height: 1180,
       pilot: { x: 840, y: 660, vx: 0, vy: 0, facing: 0, gunCd: 0, invuln: 0 },
@@ -2109,7 +2130,86 @@ class VectorShooter {
       aliens,
       collected: 0,
       pendingUpgrade: false,
-      message: this.surfaceEventMessage(event, first)
+      message: this.surfaceEventMessage(event, first, scenario)
+    }
+  }
+
+  private rollSurfaceScenario(planet: Planet, event: SurfaceEventKind, first: boolean): SurfaceScenarioKind {
+    const interest = this.surfaceInterest()
+    const roll = Math.random()
+    let salvage = first ? 0.52 - interest * 0.24 : 0.72 - interest * 0.12
+    let boss = 0.11 + interest * 0.24
+    let friendly = 0.18 + interest * 0.14
+    let mixed = 0.04 + interest * 0.16
+    if (planet.archetype === 'hostile' || event === 'swarm') {
+      boss += 0.24
+      friendly -= 0.08
+      salvage -= 0.14
+    }
+    if (planet.archetype === 'repair' || event === 'repair') {
+      friendly += 0.24
+      boss -= 0.08
+    }
+    if (planet.archetype === 'relic' || planet.archetype === 'strange' || event === 'relic' || event === 'volatile') {
+      mixed += 0.16
+      boss += 0.08
+      friendly += 0.08
+      salvage -= 0.12
+    }
+    if (!first) {
+      mixed *= 0.55
+      boss *= 0.72
+    }
+    salvage = Math.max(0.12, salvage)
+    boss = Math.max(0.04, boss)
+    friendly = Math.max(0.06, friendly)
+    mixed = Math.max(0.02, mixed)
+    const total = salvage + boss + friendly + mixed
+    const pick = roll * total
+    if (pick < salvage) return 'salvage'
+    if (pick < salvage + boss) return 'boss'
+    if (pick < salvage + boss + friendly) return 'friendly'
+    return 'mixed'
+  }
+
+  private surfaceInterest() {
+    return clamp(this.stats.time / 420 + this.stats.planets * 0.075 + this.stats.level * 0.012, 0, 1)
+  }
+
+  private createGenericSurfaceThreat(planet: Planet, event: SurfaceEventKind, i: number, total: number): SurfaceThreat {
+    const a = (i / Math.max(1, total)) * TAU + rand(-0.25, 0.25)
+    const r = event === 'swarm' ? rand(260, 520) : rand(120, 440)
+    return {
+      x: clamp(800 + Math.cos(a) * r, 90, 1510),
+      y: clamp(590 + Math.sin(a) * r, 90, 1090),
+      vx: 0,
+      vy: 0,
+      hp: event === 'swarm' ? 20 + this.stats.time * 0.12 : planet.name === 'NULL CATHEDRAL' ? 46 : 28,
+      radius: event === 'swarm' ? 13 : planet.name === 'NULL CATHEDRAL' ? 22 : 16,
+      phase: rand(0, TAU),
+      color: planet.name === 'RED MERCY' || planet.name === 'NULL CATHEDRAL' ? '#ff5d73' : '#fff27a',
+      hit: 0
+    }
+  }
+
+  private createPlanetBossThreat(planet: Planet, crowded: boolean): SurfaceThreat {
+    const seed = hashString(planet.id, this.stats.planets + Math.floor(this.stats.time / 60))
+    const row = seed % BOSS_CATALOG_ROWS
+    const angle = ((seed >>> 4) / 0xfffffff) * TAU
+    const distance = crowded ? rand(280, 420) : rand(170, 320)
+    return {
+      x: clamp(800 + Math.cos(angle) * distance, 130, 1470),
+      y: clamp(590 + Math.sin(angle) * distance, 130, 1050),
+      vx: 0,
+      vy: 0,
+      hp: 120 + this.stats.time * 0.36 + this.stats.level * 6,
+      radius: 42,
+      phase: rand(0, TAU),
+      color: ['#57fff3', '#fff27a', '#8fff7d', '#ff61d8', '#d7fff7'][row],
+      hit: 0,
+      sprite: 'bossCatalog',
+      spriteRow: row,
+      boss: true
     }
   }
 
@@ -2128,9 +2228,11 @@ class VectorShooter {
     }
   }
 
-  private createSurfaceAliens(event: SurfaceEventKind, threatCount: number): SurfaceAlien[] {
+  private createSurfaceAliens(planet: Planet, event: SurfaceEventKind, threatCount: number, scenario: SurfaceScenarioKind): SurfaceAlien[] {
     const quiet = threatCount === 0
     const chance =
+      scenario === 'friendly' ? 1 :
+      scenario === 'mixed' ? 0.62 + this.surfaceInterest() * 0.24 :
       event === 'swarm' ? 0.06 :
       event === 'volatile' ? 0.22 :
       event === 'repair' ? 0.72 :
@@ -2139,17 +2241,20 @@ class VectorShooter {
       0.28
     if (Math.random() > chance + (quiet ? 0.18 : 0)) return []
     const colors = ['#b990ff', '#fff27a', '#57fff3', '#8fff7d']
-    const names = ['THE SMALL ORACLE', 'A STATIC PILGRIM', 'THE GLASS HERBALIST', 'A COIN-EYED STRANGER', 'THE SOFT MACHINE']
+    const names = ['THE GLASS HERBALIST', 'A STATIC PILGRIM', 'THE COIN KEEPER', 'THE STAR MAPMAKER', 'THE RELIC MONK']
     const gifts: AlienGiftKind[] = ['herb', 'idol', 'map', 'coin']
+    const row = hashString(planet.id, Math.floor(this.stats.time) + 17) % ALIEN_CATALOG_ROWS
     return [{
       x: rand(260, 1340),
       y: rand(210, 960),
-      radius: 24,
+      radius: 28,
       phase: rand(0, TAU),
-      color: colors[Math.floor(Math.random() * colors.length)],
-      name: names[Math.floor(Math.random() * names.length)],
+      color: colors[row % colors.length],
+      name: names[row],
       gift: gifts[Math.floor(Math.random() * gifts.length)],
-      resolved: false
+      resolved: false,
+      sprite: 'alienCatalog',
+      spriteRow: row
     }]
   }
 
@@ -2190,7 +2295,10 @@ class VectorShooter {
     return { x: rand(180, 1420), y: rand(170, 1010) }
   }
 
-  private surfaceEventMessage(event: SurfaceEventKind, first: boolean) {
+  private surfaceEventMessage(event: SurfaceEventKind, first: boolean, scenario?: SurfaceScenarioKind) {
+    if (scenario === 'boss') return 'LARGE BIO-SIGNAL BELOW. KILL IT OR RUN.'
+    if (scenario === 'friendly') return 'SINGLE LIFEFORM HAILING YOUR SUIT. APPROACH CAREFULLY.'
+    if (scenario === 'mixed') return 'WEIRD SURFACE. CONTACTS AND A RARE SIGNAL SHARE THE SAME GROUND.'
     if (event === 'jackpot') return 'SIGNAL JACKPOT. GRAB EVERYTHING.'
     if (event === 'swarm') return 'BAD PLANET. CONTACTS EVERYWHERE.'
     if (event === 'relic') return 'RELIC SIGNATURES BELOW. CACHE HUNT.'
@@ -2307,12 +2415,14 @@ class VectorShooter {
       threat.phase += dt
       threat.hit -= dt
       const toPilot = norm(this.surface.pilot.x - threat.x, this.surface.pilot.y - threat.y)
-      threat.vx += toPilot.x * 360 * dt
-      threat.vy += toPilot.y * 360 * dt
+      const accel = threat.boss ? 230 : 360
+      const maxSpeed = threat.boss ? 70 : 92
+      threat.vx += toPilot.x * accel * dt
+      threat.vy += toPilot.y * accel * dt
       const speed = len(threat.vx, threat.vy)
-      if (speed > 92) {
-        threat.vx = (threat.vx / speed) * 92
-        threat.vy = (threat.vy / speed) * 92
+      if (speed > maxSpeed) {
+        threat.vx = (threat.vx / speed) * maxSpeed
+        threat.vy = (threat.vy / speed) * maxSpeed
       }
       threat.vx *= Math.pow(0.16, dt)
       threat.vy *= Math.pow(0.16, dt)
@@ -2321,16 +2431,37 @@ class VectorShooter {
       const rr = threat.radius + 13
       if ((threat.x - this.surface.pilot.x) ** 2 + (threat.y - this.surface.pilot.y) ** 2 < rr * rr && this.surface.pilot.invuln <= 0) {
         this.surface.pilot.invuln = 0.65
-        this.damagePlayer(9)
+        this.damagePlayer(threat.boss ? 16 : 9)
         this.burst(this.surface.pilot.x, this.surface.pilot.y, '#ff5d73', 10, 160)
       }
       if (threat.hp <= 0) {
-        this.burst(threat.x, threat.y, threat.color, 24, 260)
+        this.burst(threat.x, threat.y, threat.color, threat.boss ? 42 : 24, threat.boss ? 360 : 260)
         this.audio.boom(false)
-        this.stats.score += 160
+        this.stats.score += threat.boss ? 1200 : 160
+        if (threat.boss) this.dropSurfaceBossCache(threat)
         this.surface.threats.splice(i, 1)
       }
     }
+  }
+
+  private dropSurfaceBossCache(threat: SurfaceThreat) {
+    if (!this.surface) return
+    const count = 5 + Math.floor(this.surfaceInterest() * 5)
+    for (let i = 0; i < count; i += 1) {
+      const a = (i / count) * TAU + rand(-0.2, 0.2)
+      const r = rand(22, 96)
+      this.surface.resources.push({
+        kind: i === 0 ? 'cache' : Math.random() < 0.65 ? 'crystal' : 'scrap',
+        x: clamp(threat.x + Math.cos(a) * r, 80, this.surface.width - 80),
+        y: clamp(threat.y + Math.sin(a) * r, 80, this.surface.height - 80),
+        radius: i === 0 ? 18 : 12,
+        value: i === 0 ? 1 : i % 2 ? 12 + this.stats.level : 150 + this.stats.level * 8,
+        color: i === 0 ? '#fff27a' : i % 2 ? threat.color : '#70a8ff',
+        collected: false
+      })
+    }
+    this.surface.message = 'BOSS SIGNAL BROKE OPEN. RICH CACHE SPILLED.'
+    this.camera.shake = Math.max(this.camera.shake, 10)
   }
 
   private findNearbyAlien() {
@@ -2403,9 +2534,15 @@ class VectorShooter {
       this.resources.crystal += 4
       this.surface.message = 'THE HERB IS SWEET. HULL KNITS SHUT.'
     } else if (alien.gift === 'idol') {
-      this.bankUpgrade('ALIEN IDOL BANKED A MUTATION SIGNAL')
-      this.resources.cores += 1
-      this.surface.message = 'THE IDOL HUMS IN TUNE WITH THE SHIP.'
+      const missingRelics = relics.filter((relic) => !this.relics.has(relic.id))
+      if (missingRelics.length && Math.random() < 0.45 + this.build.luck * 0.04) {
+        this.acquireRelic(missingRelics[Math.floor(Math.random() * missingRelics.length)], 'ALIEN ARTEFACT CLAIMED')
+        this.surface.message = 'THE IDOL OPENS INTO A RARE ARTEFACT.'
+      } else {
+        this.bankUpgrade('ALIEN IDOL BANKED A MUTATION SIGNAL')
+        this.resources.cores += 1
+        this.surface.message = 'THE IDOL HUMS IN TUNE WITH THE SHIP.'
+      }
     } else if (alien.gift === 'map') {
       this.build.survey = clamp(this.build.survey + 1, 0, upgrades.find((u) => u.id === 'survey')?.max ?? 6)
       this.stats.score += 650
@@ -2847,6 +2984,10 @@ class VectorShooter {
         this.renderGlassMiteOracleThreat(ctx, threat)
         continue
       }
+      if (threat.sprite === 'bossCatalog') {
+        this.renderCatalogBossThreat(ctx, threat)
+        continue
+      }
       const p = this.surfaceToScreen(threat.x, threat.y)
       ctx.save()
       ctx.translate(p.x, p.y)
@@ -2902,6 +3043,36 @@ class VectorShooter {
     ctx.restore()
   }
 
+  private renderCatalogBossThreat(ctx: CanvasRenderingContext2D, threat: SurfaceThreat) {
+    const p = this.surfaceToScreen(threat.x, threat.y)
+    const sheet = this.planetBossCatalog
+    if (!sheet.complete || sheet.naturalWidth === 0) {
+      this.renderFallbackMite(ctx, threat, p)
+      return
+    }
+    const row = clamp(Math.floor(threat.spriteRow ?? 0), 0, BOSS_CATALOG_ROWS - 1)
+    const frame = Math.floor((this.stats.time * 6 + threat.phase) % BOSS_CATALOG_FRAMES)
+    const sw = sheet.naturalWidth / BOSS_CATALOG_FRAMES
+    const sh = sheet.naturalHeight / BOSS_CATALOG_ROWS
+    const bob = Math.sin(this.stats.time * 3.2 + threat.phase) * 4
+    const scale = threat.hit > 0 ? 0.58 : 0.54
+    const dw = sw * scale
+    const dh = sh * scale
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = threat.hit > 0 ? 1 : 0.94
+    ctx.shadowColor = threat.color
+    ctx.shadowBlur = this.allowGlow() ? 24 : 8
+    ctx.drawImage(sheet, frame * sw, row * sh, sw, sh, p.x - dw / 2, p.y - dh * 0.55 + bob, dw, dh)
+    ctx.globalAlpha = 0.45
+    ctx.strokeStyle = threat.hit > 0 ? '#ffffff' : threat.color
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(p.x, p.y + bob, threat.radius + 9 + Math.sin(this.stats.time * 4 + threat.phase) * 4, 0, TAU)
+    ctx.stroke()
+    ctx.restore()
+  }
+
   private renderFallbackMite(ctx: CanvasRenderingContext2D, threat: SurfaceThreat, p: Vec) {
     ctx.save()
     ctx.translate(p.x, p.y)
@@ -2930,6 +3101,10 @@ class VectorShooter {
   private renderSurfaceAliens(ctx: CanvasRenderingContext2D, s: SurfaceRun) {
     for (const alien of s.aliens) {
       if (alien.resolved) continue
+      if (alien.sprite === 'alienCatalog' && this.planetAlienCatalog.complete && this.planetAlienCatalog.naturalWidth > 0) {
+        this.renderCatalogAlien(ctx, alien)
+        continue
+      }
       const p = this.surfaceToScreen(alien.x, alien.y)
       const bob = Math.sin(this.stats.time * 2.4 + alien.phase) * 5
       ctx.save()
@@ -2963,6 +3138,33 @@ class VectorShooter {
       ctx.stroke()
       ctx.restore()
     }
+  }
+
+  private renderCatalogAlien(ctx: CanvasRenderingContext2D, alien: SurfaceAlien) {
+    const p = this.surfaceToScreen(alien.x, alien.y)
+    const sheet = this.planetAlienCatalog
+    if (!sheet.complete || sheet.naturalWidth === 0) return
+    const row = clamp(Math.floor(alien.spriteRow ?? 0), 0, ALIEN_CATALOG_ROWS - 1)
+    const frame = Math.floor((this.stats.time * 4 + alien.phase) % ALIEN_CATALOG_FRAMES)
+    const sw = sheet.naturalWidth / ALIEN_CATALOG_FRAMES
+    const sh = sheet.naturalHeight / ALIEN_CATALOG_ROWS
+    const bob = Math.sin(this.stats.time * 2.2 + alien.phase) * 5
+    const scale = 0.48
+    const dw = sw * scale
+    const dh = sh * scale
+    ctx.save()
+    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalAlpha = 0.94
+    ctx.shadowColor = alien.color
+    ctx.shadowBlur = this.allowGlow() ? 20 : 8
+    ctx.drawImage(sheet, frame * sw, row * sh, sw, sh, p.x - dw / 2, p.y - dh * 0.58 + bob, dw, dh)
+    ctx.globalAlpha = 0.55
+    ctx.strokeStyle = '#8fff7d'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(p.x, p.y + bob, alien.radius + 12 + Math.sin(this.stats.time * 3) * 3, 0, TAU)
+    ctx.stroke()
+    ctx.restore()
   }
 
   private renderSurfaceBullets(ctx: CanvasRenderingContext2D, s: SurfaceRun) {
@@ -3071,7 +3273,7 @@ class VectorShooter {
     ctx.font = this.width < 560 ? '12px Courier New' : '14px Courier New'
     ctx.textAlign = 'center'
     const message = nearAlien ? `PRESS E / Y TO SPEAK: ${nearAlien.name}` : nearShip ? 'PRESS E / Y TO BOARD SHIP' : s.message
-    ctx.fillText(`${s.planet.name} // ${this.surfaceEventLabel(s.event)} // ${s.collected}/${s.resources.length} SIGNALS`, this.width / 2, 86, this.width - 16)
+    ctx.fillText(`${s.planet.name} // ${this.surfaceScenarioLabel(s.scenario)} // ${this.surfaceEventLabel(s.event)} // ${s.collected}/${s.resources.length} SIGNALS`, this.width / 2, 86, this.width - 16)
     const actionInset = this.width < 560 ? 132 : 0
     const messageX = actionInset ? (this.width - actionInset) / 2 : this.width / 2
     ctx.fillText(message, messageX, this.height - 42, this.width - actionInset - 18)
@@ -3087,6 +3289,15 @@ class VectorShooter {
       volatile: 'VOLATILE',
       standard: 'UNKNOWN'
     }[event]
+  }
+
+  private surfaceScenarioLabel(scenario: SurfaceScenarioKind) {
+    return {
+      salvage: 'SALVAGE',
+      boss: 'BOSS',
+      friendly: 'CONTACT',
+      mixed: 'MYSTERY'
+    }[scenario]
   }
 
   private renderTransitionOverlay(ctx: CanvasRenderingContext2D, t: number, label: string) {
