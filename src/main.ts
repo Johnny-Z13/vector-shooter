@@ -1591,7 +1591,7 @@ class VectorShooter {
     this.surface.pilot.y = clamp(this.surface.pilot.y + this.surface.pilot.vy * dt, 40, this.surface.height - 40)
     if (Math.abs(input.move.x) + Math.abs(input.move.y) > 0.05) this.surface.pilot.facing = Math.atan2(input.move.y, input.move.x)
 
-    if (input.firing && this.surface.pilot.gunCd <= 0) this.fireSurfaceGun()
+    if (this.surface.pilot.gunCd <= 0 && this.findSurfaceTarget()) this.fireSurfaceGun()
     this.collectSurfaceResources()
     this.updateSurfaceBullets(dt)
     this.updateSurfaceThreats(dt)
@@ -3366,9 +3366,8 @@ class VectorShooter {
   private fireSurfaceGun() {
     if (!this.surface) return
     const target = this.findSurfaceTarget()
-    const angle = target
-      ? Math.atan2(target.y - this.surface.pilot.y, target.x - this.surface.pilot.x)
-      : this.surface.pilot.facing
+    if (!target) return
+    const angle = Math.atan2(target.y - this.surface.pilot.y, target.x - this.surface.pilot.x)
     this.surface.pilot.facing = angle
     this.surface.pilot.gunCd = 0.22
     this.audio.fire('surface', 1)
@@ -4972,7 +4971,7 @@ class VectorShooter {
       const lore = this.findNearbyLoreSite()
       const alien = this.findNearbyAlien()
       this.ui.touchAction.textContent = lore ? 'INSPECT' : alien ? 'TALK' : this.surface && Math.sqrt(dist2(this.surface.pilot, this.surface.ship)) < 64 ? 'BOARD' : 'USE'
-      this.ui.touchDash.textContent = 'SHOOT'
+      this.ui.touchDash.textContent = this.findSurfaceTarget() ? 'AUTO' : 'SAFE'
       return
     }
     const planet = this.planets.find((p) => Math.sqrt(dist2(p, this.player)) < p.radius + 86)

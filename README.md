@@ -33,7 +33,7 @@ The default experience is designed for an iPhone-style portrait screen.
 - At `Nav Ghost` rank 3+, tap `LOCK` away from a planet to auto-travel toward the nearest beacon.
 - On a planet, tap `BOARD` near the ship to leave.
 - Tap `DASH` in space.
-- Tap `SHOOT` on planet surfaces.
+- On planet surfaces, the pilot auto-shoots when threats are nearby.
 
 The lower-right action buttons are protected from movement input, so tapping them will not accidentally steer the player.
 
