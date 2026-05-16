@@ -574,6 +574,13 @@ class AudioDirector {
     setTimeout(() => this.tone(810, 0.18, 'triangle', 0.07, 0.02, -12), 140)
   }
 
+  install(rare = false) {
+    this.tone(520, 0.08, 'triangle', 0.04, 0.008, rare ? -10 : -13)
+    setTimeout(() => this.tone(760, 0.1, 'square', 0.03, 0.006, rare ? -11 : -15), 55)
+    setTimeout(() => this.tone(1120, 0.12, 'sine', 0.032, 0.006, rare ? -10 : -14), 120)
+    if (rare) this.noise(0.08, 0.075, -17)
+  }
+
   boom(big = false) {
     this.noise(big ? 0.28 : 0.16, big ? 0.18 : 0.1, big ? -8 : -12)
     this.tone(big ? 56 : 92, big ? 0.34 : 0.18, 'sawtooth', big ? 0.08 : 0.04, 0.02, big ? -8 : -13)
@@ -656,6 +663,7 @@ class VectorShooter {
   private toastTimer = 0
   private toastText = ''
   private upgradeChoices: WorkbenchChoice[] = []
+  private workbenchInstalling = false
   private planetChoice: Planet | null = null
   private alienChoice: SurfaceAlien | null = null
   private transitionTimer = 0
@@ -1370,6 +1378,7 @@ class VectorShooter {
     const spread = count === 1 ? 0 : clamp(0.12 + count * 0.035, 0.12, 0.31)
     const rail = this.build.rail > 0 && this.fireSerial % Math.max((solar ? 6 : 8) - this.build.rail, 3) === 0
     const needle = this.build.rift > 0 && this.fireSerial % Math.max((blackNeedle ? 9 : 12) - this.build.rift, 4) === 0
+    const pulseColor = storm ? '#8fff7d' : choir ? '#f6fffe' : this.build.heat >= 3 ? '#ff9d5c' : this.build.pierce >= 3 ? '#70a8ff' : '#57fff3'
     const volleys = choir ? 2 : 1
     this.fireSerial += 1
     for (let v = 0; v < volleys; v += 1) {
@@ -1384,7 +1393,7 @@ class VectorShooter {
           life: rail ? 0.86 + (solar ? 0.28 : 0) : 0.62 + this.build.echo * 0.13 + (resonance ? 0.24 : 0),
           damage: rail ? damage * (solar ? 3.4 : 2.4) : damage * (shatter && i !== Math.floor(count / 2) ? 0.82 : 1),
           radius: rail ? (solar ? 7 : 5) : 3.5,
-          color: rail ? '#fff27a' : needle ? '#b990ff' : '#57fff3',
+          color: rail ? '#fff27a' : needle ? '#b990ff' : pulseColor,
           pierce: rail ? 7 + this.build.pierce + (solar ? 5 : 0) : this.build.pierce + (resonance ? 1 : 0),
           rail,
           chain: this.build.chain + (storm ? 3 : 0)
@@ -1856,6 +1865,7 @@ class VectorShooter {
   private openLevelUp(title = 'SHIPBOARD WORKBENCH', copy = 'Spend one banked mutation signal before takeoff.', rare = false) {
     this.state = 'levelup'
     this.audio.level()
+    this.workbenchInstalling = false
     const count = 3 + (rare || Math.random() < 0.08 + this.build.luck * 0.08 ? 1 : 0)
     this.upgradeChoices = this.rollUpgrades(count, rare)
     this.renderLevelUp(title, copy)
@@ -1930,6 +1940,7 @@ class VectorShooter {
   }
 
   private applyWorkbenchChoice(choice: WorkbenchChoice) {
+    this.workbenchInstalling = false
     if (choice.kind === 'upgrade') this.applyUpgrade(choice.upgrade)
     else if (choice.kind === 'evolution') this.applyEvolution(choice.evolution)
     else if (choice.kind === 'relic') this.acquireRelic(choice.relic, 'WORKBENCH RELIC INSTALLED')
@@ -1960,6 +1971,9 @@ class VectorShooter {
       this.player.hull = this.player.maxHull
     }
     if (upgrade.id === 'magnet') this.stats.score += 60
+    this.camera.shake = Math.max(this.camera.shake, upgrade.category === 'weapon' ? 7 : 5)
+    const anchor = this.fxAnchor()
+    this.burst(anchor.x, anchor.y, upgrade.category === 'weapon' ? '#57fff3' : '#8fff7d', 18 + this.build[upgrade.id] * 2, 210)
     this.toast(`${upgrade.name.toUpperCase()} ONLINE`)
   }
 
@@ -1967,7 +1981,8 @@ class VectorShooter {
     this.evolved.add(evolution.weapon)
     this.audio.level()
     this.camera.shake = Math.max(this.camera.shake, 12)
-    this.burst(this.player.x, this.player.y, '#fff27a', 34, 320)
+    const anchor = this.fxAnchor()
+    this.burst(anchor.x, anchor.y, '#fff27a', 34, 320)
     this.toast(`${evolution.name.toUpperCase()} EVOLVED`)
   }
 
@@ -1981,7 +1996,8 @@ class VectorShooter {
     this.relics.add(relic.id)
     this.stats.score += 500 + this.relics.size * 120
     this.audio.level()
-    this.burst(this.player.x, this.player.y, '#fff27a', 22, 240)
+    const anchor = this.fxAnchor()
+    this.burst(anchor.x, anchor.y, '#fff27a', 22, 240)
     this.toast(`${message}: ${relic.name.toUpperCase()}`)
   }
 
@@ -1991,7 +2007,13 @@ class VectorShooter {
       this.player.maxHull += 3
       this.player.hull = clamp(this.player.hull + 10, 0, this.player.maxHull)
     }
+    const anchor = this.fxAnchor()
+    this.burst(anchor.x, anchor.y, '#70a8ff', 14, 180)
     this.toast(choice.name.toUpperCase())
+  }
+
+  private fxAnchor(): Vec {
+    return this.surface?.ship ?? this.player
   }
 
   private tryLand() {
@@ -3160,12 +3182,17 @@ class VectorShooter {
   private renderPlayer(ctx: CanvasRenderingContext2D) {
     const p = this.worldToScreen(this.player.x, this.player.y)
     const a = this.player.angle
+    const engineGlow = this.build.engine + this.build.heat + this.limitBreaks.speed * 0.2
+    const weaponGlow = this.build.rapid + this.build.split + this.build.rail + this.build.rift
+    const hullGlow = this.build.repair + this.limitBreaks.hull
+    const hullColor = this.evolved.size > 0 ? '#fff27a' : weaponGlow > 8 ? '#f6fffe' : '#57fff3'
+    const exhaustColor = this.build.heat >= 3 ? '#ff9d5c' : this.build.engine >= 3 ? '#70a8ff' : '#57fff3'
     ctx.save()
     ctx.translate(p.x, p.y)
     ctx.rotate(a)
-    ctx.strokeStyle = this.player.invuln > 0 ? '#fff27a' : '#57fff3'
-    ctx.shadowColor = '#57fff3'
-    ctx.shadowBlur = 14
+    ctx.strokeStyle = this.player.invuln > 0 ? '#fff27a' : hullColor
+    ctx.shadowColor = hullColor
+    ctx.shadowBlur = 14 + Math.min(8, weaponGlow)
     ctx.lineWidth = 2
     ctx.beginPath()
     ctx.moveTo(24, 0)
@@ -3174,11 +3201,40 @@ class VectorShooter {
     ctx.lineTo(-15, 13)
     ctx.closePath()
     ctx.stroke()
+    if (this.build.split > 0 || this.build.rail > 0) {
+      ctx.strokeStyle = this.build.rail > 0 ? '#fff27a' : '#70a8ff'
+      ctx.beginPath()
+      ctx.moveTo(2, -12)
+      ctx.lineTo(16 + Math.min(10, this.build.rail * 2), -20 - Math.min(8, this.build.split))
+      ctx.moveTo(2, 12)
+      ctx.lineTo(16 + Math.min(10, this.build.rail * 2), 20 + Math.min(8, this.build.split))
+      ctx.stroke()
+    }
+    if (hullGlow > 0) {
+      ctx.strokeStyle = '#8fff7d'
+      ctx.globalAlpha = 0.72
+      ctx.beginPath()
+      ctx.moveTo(-8, -8)
+      ctx.lineTo(6, -4)
+      ctx.moveTo(-8, 8)
+      ctx.lineTo(6, 4)
+      ctx.stroke()
+      ctx.globalAlpha = 1
+    }
     ctx.beginPath()
     ctx.moveTo(-16, -8)
-    ctx.lineTo(-28 - Math.random() * 8, 0)
+    ctx.strokeStyle = exhaustColor
+    ctx.shadowColor = exhaustColor
+    ctx.lineTo(-28 - Math.random() * (8 + engineGlow * 2), 0)
     ctx.lineTo(-16, 8)
     ctx.stroke()
+    if (this.build.phase > 0) {
+      ctx.globalAlpha = 0.35
+      ctx.strokeStyle = '#b990ff'
+      ctx.beginPath()
+      ctx.arc(0, 0, 28 + Math.sin(this.stats.time * 8) * 2, 0, TAU)
+      ctx.stroke()
+    }
     ctx.restore()
 
     if (this.player.maxShield > 0 && this.player.shield > 1) {
@@ -3757,12 +3813,68 @@ class VectorShooter {
       const button = document.createElement('button')
       button.className = `choice ${choice.kind}`
       button.innerHTML = this.choiceMarkup(choice)
-      button.addEventListener('click', () => this.applyWorkbenchChoice(choice))
+      button.addEventListener('click', () => this.beginWorkbenchInstall(choice, button))
       grid.append(button)
     }
-    panel.append(h, p, grid)
+    const banner = document.createElement('div')
+    banner.className = 'install-banner'
+    banner.textContent = 'INSTALLING MUTATION...'
+    panel.append(h, p, grid, banner, this.renderBuildManifest())
     this.ui.levelup.append(panel)
     this.showOnly('levelup')
+  }
+
+  private beginWorkbenchInstall(choice: WorkbenchChoice, button: HTMLButtonElement) {
+    if (this.workbenchInstalling) return
+    this.workbenchInstalling = true
+    const rare = choice.kind !== 'upgrade' || choice.upgrade.rarity < 65
+    this.audio.install(rare)
+    this.camera.shake = Math.max(this.camera.shake, rare ? 10 : 6)
+    const color = choice.kind === 'evolution' || choice.kind === 'relic' ? '#fff27a' : choice.kind === 'limit' ? '#70a8ff' : choice.upgrade.category === 'weapon' ? '#57fff3' : '#8fff7d'
+    const anchor = this.surface?.ship ?? this.player
+    this.burst(anchor.x, anchor.y, color, rare ? 28 : 18, rare ? 260 : 190)
+    button.classList.add('selected')
+    for (const el of Array.from(this.ui.levelup.querySelectorAll<HTMLButtonElement>('.choice'))) el.disabled = true
+    const banner = this.ui.levelup.querySelector<HTMLElement>('.install-banner')
+    if (banner) {
+      banner.textContent = `${this.choiceTitle(choice).toUpperCase()} INSTALLED`
+      banner.classList.add('visible')
+    }
+    window.setTimeout(() => this.applyWorkbenchChoice(choice), rare ? 760 : 560)
+  }
+
+  private choiceTitle(choice: WorkbenchChoice) {
+    if (choice.kind === 'upgrade') return choice.upgrade.name
+    if (choice.kind === 'evolution') return choice.evolution.name
+    if (choice.kind === 'relic') return choice.relic.name
+    return choice.name
+  }
+
+  private renderBuildManifest() {
+    const wrap = document.createElement('div')
+    wrap.className = 'build-manifest'
+    const title = document.createElement('div')
+    title.className = 'manifest-title'
+    title.innerHTML = '<b>BUILD MANIFEST</b><span>locked systems, owned ranks, and evolution routes</span>'
+    const chips = document.createElement('div')
+    chips.className = 'manifest-grid'
+    for (const upgrade of upgrades) {
+      const level = this.build[upgrade.id]
+      const maxed = level >= upgrade.max
+      const evolved = this.evolved.has(upgrade.id)
+      const catalyst = upgrade.catalyst ? relics.find((relic) => relic.id === upgrade.catalyst) : null
+      const ready = maxed && catalyst && this.relics.has(catalyst.id) && !evolved
+      const chip = document.createElement('div')
+      chip.className = `manifest-chip ${level > 0 ? 'owned' : 'locked'} ${maxed ? 'maxed' : ''} ${ready ? 'ready' : ''} ${evolved ? 'evolved' : ''}`
+      const route = evolved ? 'EVOLVED' : ready ? 'EVOLUTION READY' : catalyst ? `CATALYST: ${catalyst.name}` : upgrade.category.toUpperCase()
+      chip.innerHTML = `<strong>${this.escape(upgrade.name)}</strong><span>${level}/${upgrade.max} ${this.escape(route)}</span>`
+      chips.append(chip)
+    }
+    const relicLine = document.createElement('div')
+    relicLine.className = 'manifest-relics'
+    relicLine.textContent = `Relics ${this.relics.size}/${relics.length} // Evolutions ${this.evolved.size}/${evolutions.length} // Limit breaks ${Object.values(this.limitBreaks).reduce((sum, value) => sum + value, 0)}`
+    wrap.append(title, chips, relicLine)
+    return wrap
   }
 
   private choiceMarkup(choice: WorkbenchChoice) {
@@ -3997,6 +4109,7 @@ class VectorShooter {
     this.surface = null
     this.transitionTimer = 0
     this.pendingUpgrades = 0
+    this.workbenchInstalling = false
     this.takeoffAfterWorkbench = false
     this.resources = { scrap: 0, crystal: 0, cores: 0 }
     this.relics.clear()
