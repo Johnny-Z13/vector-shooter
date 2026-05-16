@@ -4,6 +4,7 @@ import planetAlienCatalogUrl from './assets/planet-alien-catalog-alpha.png'
 import planetBossCatalogUrl from './assets/planet-boss-catalog-alpha.png'
 import surfaceSpacemanSheetUrl from './assets/surface-spaceman-sheet-alpha.png'
 import titleLogoMarkUrl from './assets/title-logo-mark.png'
+import { pressurePackSize, shouldRecycleEnemy } from './spawn-pressure'
 
 type GameState = 'title' | 'playing' | 'paused' | 'levelup' | 'planet' | 'landing' | 'surface' | 'alien' | 'lore' | 'takeoff' | 'gameover' | 'scores'
 type PickupKind = 'xp' | 'repair' | 'magnet' | 'core' | 'chest'
@@ -302,6 +303,8 @@ const MAX_SHOCKWAVES = 12
 const MAX_BULLETS = 220
 const MAX_ENEMIES = 320
 const MAX_PICKUPS = 220
+const ENEMY_RECYCLE_RADIUS = 2200
+const ENEMY_PRESSURE_RADIUS = 1250
 
 const upgrades: Upgrade[] = [
   {
@@ -873,6 +876,7 @@ class VectorShooter {
   private workbenchView: WorkbenchView = 'upgrades'
   private planetChoice: Planet | null = null
   private alienChoice: SurfaceAlien | null = null
+  private orbitReturnPoint: Vec | null = null
   private transitionTimer = 0
   private transitionDuration = 1.25
   private surface: SurfaceRun | null = null
@@ -1535,7 +1539,19 @@ class VectorShooter {
     this.toastTimer -= dt
     this.updateParticles(dt)
     this.updateHud()
+    if (this.transitionTimer >= this.transitionDuration * 0.5) this.snapToOrbitReturnPoint()
     if (this.transitionTimer >= this.transitionDuration) this.finishTakeoff()
+  }
+
+  private snapToOrbitReturnPoint() {
+    if (!this.orbitReturnPoint) return
+    this.player.x = this.orbitReturnPoint.x
+    this.player.y = this.orbitReturnPoint.y
+    this.player.vx = 0
+    this.player.vy = 0
+    this.camera.x = this.player.x - this.width / 2
+    this.camera.y = this.player.y - this.height / 2
+    this.updateSpaceChunks(true)
   }
 
   private updateSurface(dt: number) {
@@ -2066,6 +2082,8 @@ class VectorShooter {
   }
 
   private updateSpawning() {
+    this.recycleDistantEnemies()
+    this.reinforceQuietField()
     const pressure = this.stats.time / 60
     if (this.spawnTimer <= 0) {
       this.spawnTimer = clamp(0.62 - pressure * 0.045 - this.stats.planets * 0.025, 0.12, 0.62)
@@ -2085,6 +2103,31 @@ class VectorShooter {
       this.pickups.push({ kind: 'chest', x: p.x, y: p.y, vx: 0, vy: 0, value: 1, radius: 16, life: 999, color: '#fff27a' })
       this.toast('A TREASURE CORE IS BROADCASTING NEARBY')
     }
+  }
+
+  private recycleDistantEnemies() {
+    for (let i = this.enemies.length - 1; i >= 0; i -= 1) {
+      if (shouldRecycleEnemy(this.enemies[i], this.player, ENEMY_RECYCLE_RADIUS)) this.enemies.splice(i, 1)
+    }
+  }
+
+  private reinforceQuietField() {
+    const pressure = this.stats.time / 60
+    const nearby = this.countNearbyEnemies(ENEMY_PRESSURE_RADIUS)
+    const targetNearbyEnemies = clamp(7 + Math.floor(pressure * 0.9) + this.stats.planets, 7, 18)
+    const maxPack = clamp(3 + Math.floor(pressure * 0.4), 3, 7)
+    const room = Math.max(0, MAX_ENEMIES - this.enemies.length)
+    const pack = Math.min(room, pressurePackSize({ nearbyEnemies: nearby, targetNearbyEnemies, maxPack }))
+    for (let i = 0; i < pack; i += 1) this.spawnEnemy(this.pickEnemyKind())
+  }
+
+  private countNearbyEnemies(radius: number) {
+    const r2 = radius * radius
+    let count = 0
+    for (const enemy of this.enemies) {
+      if (dist2(enemy, this.player) <= r2) count += 1
+    }
+    return count
   }
 
   private pickEnemyKind(): EnemyKind {
@@ -2504,6 +2547,7 @@ class VectorShooter {
     this.state = 'landing'
     this.planetChoice = planet
     this.autoNavTargetPlanetId = null
+    this.orbitReturnPoint = { x: this.player.x, y: this.player.y }
     this.transitionTimer = 0
     this.transitionDuration = 1.35
     this.showOnly(null)
@@ -3293,6 +3337,7 @@ class VectorShooter {
 
   private finishTakeoff() {
     if (!this.surface) return
+    this.snapToOrbitReturnPoint()
     const first = !this.surface.planet.visited
     this.surface.planet.visited = true
     this.visitedPlanets.add(this.surface.planet.id)
@@ -3304,6 +3349,7 @@ class VectorShooter {
     const planetName = this.surface.planet.name
     this.surface = null
     this.alienChoice = null
+    this.orbitReturnPoint = null
     this.state = 'playing'
     this.showOnly(null)
     this.toast(`${planetName}: SURFACE CACHE EXTRACTED`)
@@ -5132,6 +5178,9 @@ class VectorShooter {
     logo.className = 'title-mark'
     logo.src = titleLogoMarkUrl
     logo.alt = 'Vector Shooter ship emblem'
+    const wordmark = document.createElement('h1')
+    wordmark.className = 'title-wordmark'
+    wordmark.innerHTML = '<span>GALACTIC</span><span>HORDES</span>'
     const row = document.createElement('div')
     row.className = 'title-actions'
     const start = document.createElement('button')
@@ -5143,7 +5192,7 @@ class VectorShooter {
     scores.textContent = 'Scores'
     scores.addEventListener('click', () => this.showScores())
     row.append(start, scores)
-    panel.append(logo, row)
+    panel.append(logo, wordmark, row)
     this.ui.title.append(panel)
     this.showOnly('title')
   }
@@ -5272,6 +5321,7 @@ class VectorShooter {
     this.autoNavHeading = 0
     this.autoNavActive = false
     this.autoNavTargetPlanetId = null
+    this.orbitReturnPoint = null
     this.surface = null
     this.transitionTimer = 0
     this.pendingUpgrades = 0
