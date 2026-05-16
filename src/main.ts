@@ -3,6 +3,7 @@ import glassMiteOracleSheetUrl from './assets/glass-mite-oracle-sheet-alpha.png'
 import planetAlienCatalogUrl from './assets/planet-alien-catalog-alpha.png'
 import planetBossCatalogUrl from './assets/planet-boss-catalog-alpha.png'
 import surfaceSpacemanSheetUrl from './assets/surface-spaceman-sheet-alpha.png'
+import titleLogoMarkUrl from './assets/title-logo-mark.png'
 
 type GameState = 'title' | 'playing' | 'paused' | 'levelup' | 'planet' | 'landing' | 'surface' | 'alien' | 'takeoff' | 'gameover' | 'scores'
 type PickupKind = 'xp' | 'repair' | 'magnet' | 'core' | 'chest'
@@ -920,11 +921,11 @@ class VectorShooter {
     }
     const planets: Planet[] = []
     const planetCount = key === '0,0' ? 3 : 1 + Math.floor(rng() * 3)
-    for (let i = 0; i < planetCount; i += 1) planets.push(this.generatePlanet(x, y, i, rng))
+    for (let i = 0; i < planetCount; i += 1) planets.push(this.generatePlanet(x, y, i, rng, planets))
     return { key, x, y, stars, planets }
   }
 
-  private generatePlanet(chunkX: number, chunkY: number, index: number, rng: () => number): Planet {
+  private generatePlanet(chunkX: number, chunkY: number, index: number, rng: () => number, existing: Planet[] = []): Planet {
     const archetypes: Planet['archetype'][] = ['cache', 'hostile', 'repair', 'relic', 'strange']
     const archetype = chunkX === 0 && chunkY === 0 && index === 0 ? 'cache' : archetypes[Math.floor(rng() * archetypes.length)]
     const prefix = ['LUX', 'RED', 'SAINT', 'GREEN', 'NULL', 'IRON', 'GHOST', 'VOID', 'GLASS', 'STATIC', 'DUST', 'HALO']
@@ -939,8 +940,30 @@ class VectorShooter {
     const name = chunkX === 0 && chunkY === 0 && index === 0 ? 'LUX MORGUE' : `${prefix[Math.floor(rng() * prefix.length)]} ${suffix[Math.floor(rng() * suffix.length)]}`
     const margin = 420
     const centerBias = chunkX === 0 && chunkY === 0 && index === 0
-    const x = centerBias ? 720 : chunkX * CHUNK_SIZE + margin + rng() * (CHUNK_SIZE - margin * 2)
-    const y = centerBias ? 220 : chunkY * CHUNK_SIZE + margin + rng() * (CHUNK_SIZE - margin * 2)
+    const radius = 82 + rng() * 72
+    let x = centerBias ? 720 : chunkX * CHUNK_SIZE + margin + rng() * (CHUNK_SIZE - margin * 2)
+    let y = centerBias ? 220 : chunkY * CHUNK_SIZE + margin + rng() * (CHUNK_SIZE - margin * 2)
+    if (!centerBias) {
+      let placed = false
+      for (let attempt = 0; attempt < 28; attempt += 1) {
+        const candidate = {
+          x: chunkX * CHUNK_SIZE + margin + rng() * (CHUNK_SIZE - margin * 2),
+          y: chunkY * CHUNK_SIZE + margin + rng() * (CHUNK_SIZE - margin * 2)
+        }
+        const clear = existing.every((planet) => Math.sqrt((planet.x - candidate.x) ** 2 + (planet.y - candidate.y) ** 2) > this.planetClearance(radius, planet.radius))
+        if (clear) {
+          x = candidate.x
+          y = candidate.y
+          placed = true
+          break
+        }
+      }
+      if (!placed) {
+        const slot = this.planetFallbackSlot(index, existing.length)
+        x = chunkX * CHUNK_SIZE + margin + slot.x * (CHUNK_SIZE - margin * 2)
+        y = chunkY * CHUNK_SIZE + margin + slot.y * (CHUNK_SIZE - margin * 2)
+      }
+    }
     const reward = {
       cache: 'Cache-heavy salvage and mutation signals.',
       hostile: 'Hostile planet. Better rewards, uglier landing.',
@@ -949,7 +972,20 @@ class VectorShooter {
       strange: 'Unstable signal. Anything could be waiting.'
     }[archetype]
     const id = `${chunkX}:${chunkY}:${index}`
-    return { id, name, x, y, radius: 82 + rng() * 72, color, visited: this.visitedPlanets.has(id), reward, chunkX, chunkY, archetype }
+    return { id, name, x, y, radius, color, visited: this.visitedPlanets.has(id), reward, chunkX, chunkY, archetype }
+  }
+
+  private planetClearance(a: number, b: number) {
+    return Math.max(520, a + b + 300)
+  }
+
+  private planetFallbackSlot(index: number, existingCount: number) {
+    const slots = [
+      { x: 0.2, y: 0.24 },
+      { x: 0.78, y: 0.34 },
+      { x: 0.42, y: 0.78 }
+    ]
+    return slots[(index + existingCount) % slots.length]
   }
 
   private chip(label: string, value: HTMLElement) {
@@ -975,6 +1011,21 @@ class VectorShooter {
 
   private bind() {
     window.addEventListener('resize', () => this.resize())
+    const preventBrowserGesture = (event: Event) => event.preventDefault()
+    document.addEventListener('gesturestart', preventBrowserGesture, { passive: false } as AddEventListenerOptions)
+    document.addEventListener('gesturechange', preventBrowserGesture, { passive: false } as AddEventListenerOptions)
+    document.addEventListener('gestureend', preventBrowserGesture, { passive: false } as AddEventListenerOptions)
+    document.addEventListener('touchmove', (event) => {
+      if (event.touches.length > 1) event.preventDefault()
+    }, { passive: false })
+    let lastTouchEnd = 0
+    document.addEventListener('touchend', (event) => {
+      const target = event.target instanceof HTMLElement ? event.target : null
+      if (target?.closest('button, input')) return
+      const now = performance.now()
+      if (now - lastTouchEnd < 320) event.preventDefault()
+      lastTouchEnd = now
+    }, { passive: false })
     window.addEventListener('keydown', (e) => {
       this.audio.unlock()
       if (!this.keys.has(e.code)) this.pressed.add(e.code)
@@ -1206,11 +1257,11 @@ class VectorShooter {
     this.surface.pilot.gunCd -= dt
     this.surface.pilot.invuln -= dt
 
-    const accel = 920 * dt
+    const accel = 1080 * dt
     this.surface.pilot.vx += input.move.x * accel
     this.surface.pilot.vy += input.move.y * accel
     const speed = len(this.surface.pilot.vx, this.surface.pilot.vy)
-    const maxSpeed = 148 + this.build.engine * 8
+    const maxSpeed = 178 + this.build.engine * 10
     if (speed > maxSpeed) {
       this.surface.pilot.vx = (this.surface.pilot.vx / speed) * maxSpeed
       this.surface.pilot.vy = (this.surface.pilot.vy / speed) * maxSpeed
@@ -4152,21 +4203,24 @@ class VectorShooter {
   private showTitle() {
     this.state = 'title'
     this.ui.title.innerHTML = ''
+    this.ui.title.className = 'screen title-screen'
     const panel = document.createElement('div')
-    panel.className = 'panel title-panel'
+    panel.className = 'title-panel'
+    const logo = document.createElement('img')
+    logo.className = 'title-mark'
+    logo.src = titleLogoMarkUrl
+    logo.alt = 'Vector Shooter ship emblem'
     const h = document.createElement('h1')
-    h.className = 'title title-logo'
+    h.className = 'title-wordmark'
     h.innerHTML = '<span>VECTOR</span><span>SHOOTER</span>'
     const k = document.createElement('p')
-    k.className = 'kicker'
-    k.textContent = 'Survive the vector horde. Land. Salvage. Evolve.'
+    k.className = 'title-kicker'
+    k.textContent = 'SURVIVE / LAND / MUTATE'
     const grid = document.createElement('div')
     grid.className = 'title-stack'
-    const left = document.createElement('div')
-    left.className = 'title-primary'
     const copy = document.createElement('p')
-    copy.className = 'copy'
-    copy.textContent = 'Auto-fire space survival built for portrait play. Drag anywhere to move through endless procedural sectors, hit planets for mystery caches, then install upgrades at the ship.'
+    copy.className = 'title-copy'
+    copy.textContent = 'Drift through endless vector space, cut through the horde, land on strange planets, and gamble your salvage into a better ship.'
     const row = document.createElement('div')
     row.className = 'title-actions'
     const start = document.createElement('button')
@@ -4181,32 +4235,31 @@ class VectorShooter {
     const quick = document.createElement('div')
     quick.className = 'title-quick'
     quick.innerHTML = `
-      <span>Thumb-drag to steer</span>
-      <span>Auto-fire locks targets</span>
-      <span>Endless sector map</span>
+      <span>AUTO-FIRE</span>
+      <span>PLANET RUNS</span>
+      <span>BOSS SIGNALS</span>
     `
     const graphics = document.createElement('div')
     graphics.className = 'graphics-row'
+    const modeLabels: Record<GraphicsMode, string> = { LOW: 'SMOOTH', MED: 'SHARP', GLOW: 'GLOW' }
     ;(['LOW', 'MED', 'GLOW'] as GraphicsMode[]).forEach((mode) => {
       const button = document.createElement('button')
       button.className = `vector-button tiny ${this.graphicsMode === mode ? 'active' : 'secondary'}`
-      button.textContent = mode
+      button.textContent = modeLabels[mode]
       button.addEventListener('click', () => {
         this.setGraphicsMode(mode)
         this.showTitle()
       })
       graphics.append(button)
     })
-    left.append(copy, row, quick, graphics)
     const meta = document.createElement('div')
-    meta.className = 'meta-list title-meta'
+    meta.className = 'title-meta'
     meta.innerHTML = `
-      <div><b>Mobile</b><span>Drag anywhere. Use LAND and DASH.</span></div>
-      <div><b>Gamepad</b><span>Left stick move. Right stick aims.</span></div>
-      <div><b>Keyboard</b><span>WASD move. E lands. Shift dashes.</span></div>
+      <div><b>HIGH SCORE</b><span>${Math.floor(this.stats.highScore)}</span></div>
+      <div><b>INPUT</b><span>TOUCH / PAD / KEYS</span></div>
     `
-    grid.append(left, meta)
-    panel.append(h, k, grid)
+    grid.append(copy, row, quick, graphics, meta)
+    panel.append(logo, h, k, grid)
     this.ui.title.append(panel)
     this.showOnly('title')
   }
