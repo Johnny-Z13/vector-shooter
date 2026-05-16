@@ -5,7 +5,6 @@ import planetBossCatalogUrl from './assets/planet-boss-catalog-alpha.png'
 import surfaceSpacemanSheetUrl from './assets/surface-spaceman-sheet-alpha.png'
 import titleLogoMarkUrl from './assets/title-logo-mark.png'
 import { pressurePackSize, shouldRecycleEnemy } from './spawn-pressure'
-import { firstOpportunityUpgrade } from './workbench-rolls'
 
 type GameState = 'title' | 'playing' | 'paused' | 'levelup' | 'planet' | 'landing' | 'surface' | 'alien' | 'lore' | 'takeoff' | 'gameover' | 'scores'
 type PickupKind = 'xp' | 'repair' | 'magnet' | 'core' | 'chest'
@@ -437,10 +436,10 @@ const upgrades: Upgrade[] = [
     name: 'Nav Ghost',
     category: 'system',
     bucket: 'navigation',
-    description: 'The low-input autonomy bucket: the ship keeps cruising and learns what to bend toward.',
+    description: 'The low-input autonomy bucket: base cruise gets faster, smarter, and better at holding intent.',
     max: 7,
     rarity: 82,
-    levels: ['Cruise Assist: ship keeps the last chosen heading', 'Vector Memory: stronger course hold and faster cruise', 'Planet Lock: USE locks onto the nearest planet beacon', 'Threat Weave: autopilot curves away from nearby enemies', 'Salvage Bias: idle cruise bends toward valuable drops', 'Overdrive Nav: faster cruise and sharper heading changes', 'Ghost Pilot: stronger autonomous steering when your thumb lifts']
+    levels: ['Vector Memory: stronger course hold and faster cruise', 'Course Bend: nudges have more authority', 'Planet Lock: USE locks onto the nearest planet beacon', 'Threat Weave: autopilot curves away from nearby enemies', 'Salvage Bias: idle cruise bends toward valuable drops', 'Overdrive Nav: faster cruise and sharper heading changes', 'Ghost Pilot: stronger autonomous steering when your thumb lifts']
   },
   {
     id: 'magnet',
@@ -1453,8 +1452,7 @@ class VectorShooter {
   }
 
   private resolveNavigationMove(move: Vec, moveActive: boolean, dt: number): Vec {
-    const level = this.build.nav
-    if (level <= 0) return move
+    const level = this.navigationCruiseLevel()
 
     const manualActive = moveActive && Math.abs(move.x) + Math.abs(move.y) > 0.06
     if (manualActive) {
@@ -1493,6 +1491,10 @@ class VectorShooter {
     const steered = { x: ghost.x + move.x * influence, y: ghost.y + move.y * influence }
     const magnitude = len(steered.x, steered.y)
     return magnitude > 1 ? { x: steered.x / magnitude, y: steered.y / magnitude } : steered
+  }
+
+  private navigationCruiseLevel() {
+    return this.build.nav + 1
   }
 
   private bestNavigationPickup() {
@@ -2353,11 +2355,6 @@ class VectorShooter {
     const relic = this.rollRelicChoice(rare)
     if (relic && choices.length < count) choices.push({ kind: 'relic', relic })
     const available = upgrades.filter((u) => this.build[u.id] < u.max && !choices.some((choice) => choice.kind === 'upgrade' && choice.upgrade.id === u.id))
-    const requiredUpgrade = firstOpportunityUpgrade(available, this.build)
-    if (requiredUpgrade && choices.length < count) {
-      choices.push({ kind: 'upgrade', upgrade: requiredUpgrade })
-      available.splice(available.indexOf(requiredUpgrade), 1)
-    }
     while (choices.length < count && available.length) {
       const selected = this.weightedUpgrade(available, rare)
       choices.push({ kind: 'upgrade', upgrade: selected })
@@ -2448,7 +2445,7 @@ class VectorShooter {
     if (upgrade.id === 'nav') {
       this.autoNavActive = true
       this.autoNavHeading = len(this.player.vx, this.player.vy) > 20 ? Math.atan2(this.player.vy, this.player.vx) : this.player.angle
-      if (nextLevel === 1) this.toast('NAV GHOST HAS THE STICK')
+      if (nextLevel === 1) this.toast('NAV GHOST TUNED TO YOUR DRIFT')
     }
     if (upgrade.id === 'shield') {
       this.player.maxShield += 18
@@ -4268,16 +4265,17 @@ class VectorShooter {
   }
 
   private renderAutopilot(ctx: CanvasRenderingContext2D) {
-    if (this.state !== 'playing' || this.build.nav <= 0 || !this.autoNavActive) return
+    if (this.state !== 'playing' || !this.autoNavActive) return
     const p = this.worldToScreen(this.player.x, this.player.y)
     const target = this.autoNavTargetPlanetId ? this.planets.find((planet) => planet.id === this.autoNavTargetPlanetId) : null
-    const color = this.build.nav >= 6 ? '#fff27a' : '#70a8ff'
+    const level = this.navigationCruiseLevel()
+    const color = this.build.nav <= 0 ? '#57fff3' : this.build.nav >= 6 ? '#fff27a' : '#70a8ff'
     ctx.save()
     ctx.strokeStyle = color
     ctx.shadowColor = color
     ctx.shadowBlur = this.graphicsMode === 'LOW' ? 0 : 14
     ctx.lineWidth = 1.2
-    ctx.globalAlpha = 0.62
+    ctx.globalAlpha = this.build.nav <= 0 ? 0.34 : 0.62
     ctx.setLineDash([10, 10])
     ctx.beginPath()
     ctx.moveTo(p.x, p.y)
@@ -4291,7 +4289,7 @@ class VectorShooter {
       ctx.arc(t.x, t.y, target.radius + 16 + Math.sin(this.stats.time * 5) * 3, 0, TAU)
       ctx.stroke()
     } else {
-      const length = 72 + this.build.nav * 13
+      const length = 62 + level * 13
       ctx.lineTo(p.x + Math.cos(this.autoNavHeading) * length, p.y + Math.sin(this.autoNavHeading) * length)
       ctx.stroke()
     }

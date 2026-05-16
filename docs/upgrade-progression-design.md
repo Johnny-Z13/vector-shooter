@@ -17,7 +17,7 @@ Vector Shooter uses Vampire Survivors-style build pressure, but moves the upgrad
 The workbench should feel like choosing a build direction, not buying tiny line items. Every upgrade belongs to a larger bucket:
 
 - **Weapons**: how the ship kills hordes, elites, and bosses.
-- **Navigation**: how much control the player has to exert, from manual drift to autonomous cruise.
+- **Navigation**: how much the player can shape the default auto-cruise, from light nudges to smarter autonomous routing.
 - **Survival**: shield, hull, sustain, and forgiveness.
 - **Economy**: pickup reach, resource yield, luck, and score pressure.
 - **Planetcraft**: safer/richer planet decisions and mystery-box reading.
@@ -51,7 +51,7 @@ The workbench should feel like choosing a build direction, not buying tiny line 
 | System | Max | Rarity | Purpose |
 |---|---:|---:|---|
 | Drift Engine | 6 | 95 | Navigation: manual speed, recovery, and dash cadence |
-| Nav Ghost | 7 | 82 | Navigation: autopilot cruise, planet lock, threat weave, salvage bias |
+| Nav Ghost | 7 | 82 | Navigation: stronger default cruise, planet lock, threat weave, salvage bias |
 | Signal Magnet | 6 | 92 | Economy: pickup comfort and XP collection routing |
 | Halo Battery | 5 | 78 | Survival: regenerating shield and mistake forgiveness |
 | Hull Stitcher | 5 | 78 | Survival: max hull, full repairs, repair scaling |
@@ -64,12 +64,13 @@ The workbench should feel like choosing a build direction, not buying tiny line 
 
 ## Nav Ghost Progression
 
-Nav Ghost is the low-input/incremental bridge. It lets the player steer the build and route rather than constantly micro-steering the ship.
+Baseline movement now starts as low-input cruise: the ship keeps travelling on the last chosen heading, auto-fires at targets, and lets the player bend direction with small nudges. Nav Ghost no longer unlocks that core feel; it improves it until navigation becomes a build identity.
 
 | Rank | Unlock | Player Effect |
 |---:|---|---|
-| 1 | Cruise Assist | Releasing movement keeps the ship travelling in the last selected heading. |
-| 2 | Vector Memory | Autopilot holds course harder and cruises faster. |
+| 0 | Baseline Cruise | Releasing movement keeps the ship travelling in the last selected heading. |
+| 1 | Vector Memory | Autopilot holds course harder and cruises faster. |
+| 2 | Course Bend | Player nudges have more authority over the cruising heading. |
 | 3 | Planet Lock | `USE`/`LOCK` away from a landing zone sets a course to the nearest planet beacon. |
 | 4 | Threat Weave | The heading subtly bends away from nearby enemies. |
 | 5 | Salvage Bias | When idle and unlocked, the heading bends toward valuable pickups. |

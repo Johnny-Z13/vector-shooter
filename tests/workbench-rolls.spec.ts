@@ -7,10 +7,11 @@ const upgrades = [
   { id: 'shield', max: 5 }
 ]
 
-test('requires nav as the first opportunity upgrade until auto-move is installed', () => {
-  expect(firstOpportunityUpgrade(upgrades, { rapid: 0, nav: 0, shield: 0 })?.id).toBe('nav')
+test('does not force a first opportunity upgrade by default', () => {
+  expect(firstOpportunityUpgrade(upgrades, { rapid: 0, nav: 0, shield: 0 })).toBeNull()
 })
 
-test('does not require nav after auto-move has been installed', () => {
-  expect(firstOpportunityUpgrade(upgrades, { rapid: 0, nav: 1, shield: 0 })).toBeNull()
+test('can still require a specific upgrade when requested', () => {
+  expect(firstOpportunityUpgrade(upgrades, { rapid: 0, nav: 0, shield: 0 }, 'nav')?.id).toBe('nav')
+  expect(firstOpportunityUpgrade(upgrades, { rapid: 0, nav: 1, shield: 0 }, 'nav')).toBeNull()
 })
