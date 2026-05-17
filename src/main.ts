@@ -4,6 +4,7 @@ import planetAlienCatalogUrl from './assets/planet-alien-catalog-alpha.png'
 import planetBossCatalogUrl from './assets/planet-boss-catalog-alpha.png'
 import surfaceSpacemanSheetUrl from './assets/surface-spaceman-sheet-alpha.png'
 import titleLogoMarkUrl from './assets/title-logo-mark.png'
+import { orderArtifactArchiveCards } from './artifact-archive'
 import { navigationCruiseScalar, navigationTrailProfile } from './navigation-cruise'
 import { ONBOARDING_PLANET_COUNT, onboardingPlanetSlot, useOnboardingPlanetField } from './onboarding-planets'
 import { pickupMagnetRange, pickupMagnetStrength } from './pickup-magnet'
@@ -5795,7 +5796,7 @@ class VectorShooter {
     `
     const grid = document.createElement('div')
     grid.className = 'artifact-grid'
-    for (const card of this.artifactCards()) grid.append(this.artifactCard(card.record, card.locked))
+    for (const card of orderArtifactArchiveCards(this.artifactCards())) grid.append(this.artifactCard(card.record, card.locked))
     wrap.append(title, summary, grid)
     return wrap
   }

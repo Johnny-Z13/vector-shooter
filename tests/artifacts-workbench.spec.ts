@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { orderArtifactArchiveCards } from '../src/artifact-archive'
 
 const source = () => readFileSync(resolve(process.cwd(), 'src/main.ts'), 'utf8')
 const styles = () => readFileSync(resolve(process.cwd(), 'src/style.css'), 'utf8')
@@ -23,6 +24,22 @@ test('artifacts track relics aliens lore and planet finds with generated icons',
   expect(main).toContain('private artifactIcon(')
   expect(css).toContain('.artifact-icon')
   expect(css).toContain('.artifact-grid')
+})
+
+test('artifact archive lists found cards before locked unknowns', () => {
+  const ordered = orderArtifactArchiveCards([
+    { locked: true, record: { title: 'Unknown Relic' } },
+    { locked: false, record: { title: 'Found Cache' } },
+    { locked: false, record: { title: 'Found Planet' } },
+    { locked: true, record: { title: 'Missing Relic' } }
+  ])
+
+  expect(ordered.map((card) => card.record.title)).toEqual([
+    'Found Cache',
+    'Found Planet',
+    'Unknown Relic',
+    'Missing Relic'
+  ])
 })
 
 test('desktop workbench uses one fixed scrollable list panel across tabs', () => {
