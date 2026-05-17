@@ -1533,6 +1533,11 @@ canvas {
     padding: 12px;
   }
 
+  .mothership-command,
+  .debrief-panel {
+    margin-top: 68px;
+  }
+
   .mothership-header {
     flex-direction: column;
   }
