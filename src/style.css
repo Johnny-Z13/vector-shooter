@@ -668,6 +668,10 @@ canvas {
   letter-spacing: 0;
 }
 
+.touch-button.hidden {
+  display: none;
+}
+
 .touch-button.dash {
   border-color: rgba(87, 255, 243, 0.66);
   background: rgba(2, 12, 16, 0.58);

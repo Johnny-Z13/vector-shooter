@@ -11,6 +11,7 @@ import { pickupMagnetRange, pickupMagnetStrength } from './pickup-magnet'
 import { pressurePackSize, shouldRecycleEnemy } from './spawn-pressure'
 import { planSurfaceEncounter, rollPlanetArchetype, type PlanetArchetype, type SurfaceEventKind, type SurfaceScenarioKind } from './surface-encounters'
 import { surfaceThreatSpawnPoint } from './surface-spawn'
+import { dashVector, touchActionLabel } from './mobile-controls'
 import {
   applyRunRecovery,
   defaultMothershipState,
@@ -1575,8 +1576,15 @@ class VectorShooter {
       this.player.vx = (this.player.vx / speed) * maxSpeed
       this.player.vy = (this.player.vy / speed) * maxSpeed
     }
-    if (input.dash && this.player.dashCd <= 0 && speed > 18) {
-      const d = norm(this.player.vx, this.player.vy)
+    if (input.dash && this.player.dashCd <= 0) {
+      const d = dashVector({
+        vx: this.player.vx,
+        vy: this.player.vy,
+        speed,
+        aimAngle: this.player.aimAngle,
+        move,
+        moveActive: input.moveActive
+      })
       this.player.vx += d.x * 520
       this.player.vy += d.y * 520
       this.player.dashCd = clamp(1.15 - this.build.engine * 0.12 - this.build.heat * 0.025, 0.48, 1.15)
@@ -5567,22 +5575,22 @@ class VectorShooter {
     if (this.state === 'surface') {
       const lore = this.findNearbyLoreSite()
       const alien = this.findNearbyAlien()
-      this.ui.touchAction.textContent = lore ? 'INSPECT' : alien ? 'TALK' : this.surface && Math.sqrt(dist2(this.surface.pilot, this.surface.ship)) < 64 ? 'BOARD' : 'USE'
+      const nearShip = Boolean(this.surface && Math.sqrt(dist2(this.surface.pilot, this.surface.ship)) < 64)
+      const action = touchActionLabel({ state: 'surface', nearLore: Boolean(lore), nearAlien: Boolean(alien), nearShip })
+      this.ui.touchAction.classList.toggle('hidden', !action)
+      this.ui.touchAction.textContent = action ?? ''
       this.ui.touchDash.textContent = this.findSurfaceTarget() ? 'AUTO' : 'SAFE'
       return
     }
     const planet = this.planets.find((p) => Math.sqrt(dist2(p, this.player)) < p.radius + 86)
-    this.ui.touchAction.textContent = planet
-      ? 'LAND'
-      : this.autoNavTargetBeacon
-        ? 'LOCKED'
-        : this.returnBeacon
-          ? 'BEACON'
-          : this.autoNavTargetPlanetId
-            ? 'LOCKED'
-            : this.build.nav >= 3
-              ? 'LOCK'
-              : 'USE'
+    const action = touchActionLabel({
+      state: 'playing',
+      planetNearby: Boolean(planet),
+      returnBeaconAvailable: Boolean(this.returnBeacon && !this.autoNavTargetBeacon),
+      canPlanetLock: Boolean(!this.autoNavTargetPlanetId && !this.returnBeacon && this.build.nav >= 3 && this.planets.length)
+    })
+    this.ui.touchAction.classList.toggle('hidden', !action)
+    this.ui.touchAction.textContent = action ?? ''
     this.ui.touchDash.textContent = 'DASH'
   }
 
