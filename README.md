@@ -7,7 +7,7 @@ Galactic Hordes is a mobile-first portrait survival shooter: Vampire Survivors p
 - Portrait-first 2D canvas game built with Vite and TypeScript.
 - Thumb-anywhere mobile movement: drag in the playfield to steer.
 - Baseline auto-cruise: release your thumb and the ship keeps travelling, then nudge the route when you touch again.
-- `Nav Ghost` upgrades make cruise faster, smarter, and able to lock onto planet beacons.
+- `Nav Ghost` upgrades make cruise faster, smarter, able to lock onto planet beacons, and leave stronger vector trails.
 - Auto-targeting ship fire with keyboard, touch, mouse, and gamepad support.
 - Planet landing transitions into on-foot surface salvage.
 - Endless procedural space sectors with deterministic planets and starfields.
@@ -77,7 +77,7 @@ Workbench choices are weighted by rarity and biased toward upgrades already owne
 Upgrades are grouped into bigger build buckets:
 
 - `WEAPONS`: fire pattern, damage shape, pierce, orbitals, elites, chains.
-- `NAVIGATION`: manual speed and `Nav Ghost` improvements to the default low-input cruise brain.
+- `NAVIGATION`: manual speed, brighter trail feedback, and `Nav Ghost` improvements to the default low-input cruise brain.
 - `SURVIVAL`: shields, hull, sustain, and mistake recovery.
 - `ECONOMY`: pickups, luck, cargo, and planet profit.
 - `PLANETCRAFT`: reading planets and making mystery boxes safer/richer.
@@ -96,12 +96,13 @@ Each sector has its own generated starfield and one to three planets. Planets ha
 - `repair`: safer dock with more hull repair
 - `relic`: stronger rare-object odds
 - `strange`: volatile mixed rewards and ambushes
+- `horde`: a vast enemy wave guarding a large treasure spill
 
 Visited planets stay remembered for the run even if their sector is unloaded and regenerated later.
 
 ## Planet Salvage
 
-Planets are mystery boxes. Landing first rolls a surface event, then a broader encounter scenario. Early planets skew toward salvage and simple resource grabs; as run time, level, and visited planets climb, the generator pushes more boss-like and mixed discoveries into the pool.
+Planets are mystery boxes. The first planet landing in a run is curated as a friendly, loot-rich tutorial stop with an alien contact, inspectable relic/lore signals, and only a few easy enemies. After that, landing first rolls a surface event, then a broader encounter scenario. Early planets skew toward salvage and simple resource grabs; as run time, level, and visited planets climb, the generator pushes more boss-like, horde-vault, and mixed discoveries into the pool.
 
 The main encounter scenarios are:
 
@@ -110,6 +111,7 @@ The main encounter scenarios are:
 - `friendly`: a strange alien NPC with a one-time offer.
 - `mixed`: some combination of dangerous life, resources, and alien weirdness.
 - `lore`: quiet ruins with inspectable two-sentence discoveries and small rewards.
+- `horde`: a dangerous treasure vault with a large enemy crowd and a massive post-fight cache.
 
 Surface caches can grant:
 

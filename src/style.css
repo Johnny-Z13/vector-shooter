@@ -407,6 +407,23 @@ canvas {
     0 0 36px rgba(87, 255, 243, 0.14);
 }
 
+.workbench-panel {
+  height: min(760px, calc(100vh - 54px));
+  max-height: calc(100vh - 54px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workbench-panel .title {
+  flex: 0 0 auto;
+}
+
+.workbench-panel .copy {
+  flex: 0 0 auto;
+  margin-bottom: 16px;
+}
+
 .title-panel {
   position: relative;
   z-index: 1;
@@ -620,11 +637,17 @@ canvas {
   gap: 12px;
 }
 
+.choice-grid.workbench-list {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
 .workbench-tabs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 14px;
+  flex: 0 0 auto;
 }
 
 .workbench-tab {
@@ -643,11 +666,11 @@ canvas {
 }
 
 .workbench-view {
-  min-height: 250px;
-}
-
-.workbench-view.manifest {
-  min-height: 360px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-color: rgba(87, 255, 243, 0.52) rgba(87, 255, 243, 0.08);
 }
 
 .choice {
@@ -662,6 +685,15 @@ canvas {
   text-align: left;
   cursor: pointer;
   transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+
+.choice-grid.workbench-list .choice {
+  min-height: 88px;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.42fr) minmax(108px, 0.22fr) minmax(0, 1fr);
+  gap: 10px 16px;
+  align-items: center;
+  padding: 12px 14px;
 }
 
 .choice:disabled {
@@ -713,6 +745,11 @@ canvas {
   margin-bottom: 8px;
 }
 
+.choice-grid.workbench-list .choice strong,
+.choice-grid.workbench-list .choice em {
+  margin-bottom: 0;
+}
+
 .choice em {
   display: inline-block;
   margin-bottom: 8px;
@@ -725,6 +762,10 @@ canvas {
   display: block;
   color: rgba(215, 255, 247, 0.74);
   line-height: 1.4;
+}
+
+.choice-grid.workbench-list .choice span {
+  line-height: 1.32;
 }
 
 .choice.evolution {
@@ -820,8 +861,6 @@ canvas {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
-  max-height: min(52vh, 430px);
-  overflow: auto;
 }
 
 .manifest-chip {
@@ -917,8 +956,12 @@ canvas {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  max-height: min(52vh, 430px);
-  overflow: auto;
+}
+
+.manifest-grid,
+.artifact-grid {
+  max-height: none;
+  overflow: visible;
 }
 
 .artifact-card {
@@ -1224,11 +1267,40 @@ canvas {
 
   .workbench-view {
     min-height: 0;
+    overflow-y: visible;
+    padding-right: 0;
   }
 
   .workbench-view.manifest,
   .workbench-view.artifacts {
     min-height: 0;
+  }
+
+  .workbench-panel {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .choice-grid.workbench-list .choice {
+    min-height: 154px;
+    display: block;
+    padding: 13px;
+  }
+
+  .choice-grid.workbench-list .choice strong,
+  .choice-grid.workbench-list .choice em {
+    margin-bottom: 8px;
+  }
+
+  .manifest-grid {
+    max-height: min(56vh, 460px);
+    overflow: auto;
+  }
+
+  .artifact-grid {
+    max-height: min(56vh, 460px);
+    overflow: auto;
   }
 
   .hud-cluster {
