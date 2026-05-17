@@ -1019,6 +1019,7 @@ class VectorShooter {
   private autoNavHeading = 0
   private autoNavActive = false
   private autoNavTargetPlanetId: string | null = null
+  private autoNavTargetBeacon = false
   private highs: ScoreEntry[] = []
   private resources = { scrap: 0, crystal: 0, cores: 0 }
   private relics = new Set<RelicId>()
@@ -1596,6 +1597,7 @@ class VectorShooter {
       this.autoNavHeading = this.autoNavActive ? angleLerp(this.autoNavHeading, target, clamp(dt * (3.6 + level * 0.42), 0, 0.38)) : target
       this.autoNavActive = true
       this.autoNavTargetPlanetId = null
+      this.autoNavTargetBeacon = false
     } else if (!this.autoNavActive) {
       const speed = len(this.player.vx, this.player.vy)
       this.autoNavHeading = speed > 20 ? Math.atan2(this.player.vy, this.player.vx) : this.player.angle
@@ -1609,6 +1611,13 @@ class VectorShooter {
       if (Math.sqrt(dist2(targetPlanet, this.player)) < targetPlanet.radius + 108) {
         this.autoNavTargetPlanetId = null
         this.toast('LANDING BEACON IN RANGE')
+      }
+    } else if (this.autoNavTargetBeacon && this.returnBeacon) {
+      const targetAngle = Math.atan2(this.returnBeacon.y - this.player.y, this.returnBeacon.x - this.player.x)
+      this.autoNavHeading = angleLerp(this.autoNavHeading, targetAngle, clamp(dt * 1.9, 0, 0.24))
+      if (Math.sqrt(dist2(this.returnBeacon, this.player)) < this.returnBeacon.radius + 16) {
+        this.autoNavTargetBeacon = false
+        this.toast('RETURN BEACON IN RANGE - HOLD POSITION')
       }
     } else if (!manualActive && level >= 5) {
       const pickup = this.bestNavigationPickup()
@@ -1689,16 +1698,28 @@ class VectorShooter {
       hold: 0,
       phase: 0
     }
-    this.toast('RETURN BEACON DETECTED')
+    this.toast('RETURN BEACON DETECTED - USE TO LOCK')
     this.audio.pickup('nav')
   }
 
   private skipReturnBeacon() {
     if (!this.returnBeacon) return
     this.returnBeacon = null
+    this.autoNavTargetBeacon = false
     this.skippedReturnBeacons += 1
     this.nextReturnBeaconAt = nextBeaconWindow(this.stats.time)
     this.toast('RETURN BEACON SKIPPED. DEEP EXTRACTION BONUS RISING.')
+  }
+
+  private lockReturnBeacon() {
+    if (!this.returnBeacon) return false
+    this.autoNavTargetPlanetId = null
+    this.autoNavTargetBeacon = true
+    this.autoNavActive = true
+    this.autoNavHeading = Math.atan2(this.returnBeacon.y - this.player.y, this.returnBeacon.x - this.player.x)
+    this.toast('RETURN BEACON LOCKED')
+    this.audio.pickup('nav')
+    return true
   }
 
   private applyThreatWeave(dt: number, level: number) {
@@ -2821,6 +2842,7 @@ class VectorShooter {
     if (this.player.landedCd > 0) return
     const planet = this.planets.find((p) => Math.sqrt(dist2(p, this.player)) < p.radius + 86)
     if (!planet) {
+      if (this.lockReturnBeacon()) return
       if (this.build.nav >= 3) {
         const target = this.nearestPlanetBeacon()
         if (target) {
@@ -4618,7 +4640,44 @@ class VectorShooter {
   private renderReturnBeacon(ctx: CanvasRenderingContext2D) {
     if (!this.returnBeacon) return
     const p = this.worldToScreen(this.returnBeacon.x, this.returnBeacon.y)
-    if (p.x < -180 || p.x > this.width + 180 || p.y < -180 || p.y > this.height + 180) return
+    const distance = Math.floor(Math.sqrt(dist2(this.returnBeacon, this.player)))
+    const margin = 34
+    const topMargin = 92
+    const onScreen = p.x >= margin && p.x <= this.width - margin && p.y >= topMargin && p.y <= this.height - margin
+    if (!onScreen) {
+      const edge = {
+        x: clamp(p.x, margin, this.width - margin),
+        y: clamp(p.y, topMargin, this.height - margin)
+      }
+      const angle = Math.atan2(p.y - this.height / 2, p.x - this.width / 2)
+      ctx.save()
+      ctx.translate(edge.x, edge.y)
+      ctx.rotate(angle)
+      ctx.fillStyle = '#fff27a'
+      ctx.strokeStyle = '#111827'
+      ctx.shadowColor = '#fff27a'
+      ctx.shadowBlur = this.allowGlow() ? 14 : 0
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.moveTo(18, 0)
+      ctx.lineTo(-10, -12)
+      ctx.lineTo(-5, 0)
+      ctx.lineTo(-10, 12)
+      ctx.closePath()
+      ctx.stroke()
+      ctx.fill()
+      ctx.restore()
+
+      ctx.save()
+      ctx.fillStyle = '#fff27a'
+      ctx.font = '12px Courier New'
+      ctx.textAlign = edge.x > this.width - 120 ? 'right' : edge.x < 120 ? 'left' : 'center'
+      const labelX = clamp(edge.x, 64, this.width - 64)
+      const labelY = clamp(edge.y - 20, topMargin, this.height - 52)
+      ctx.fillText(`BEACON ${distance}`, labelX, labelY)
+      ctx.restore()
+      return
+    }
     const pulse = Math.sin(this.returnBeacon.phase * 4) * 0.5 + 0.5
     ctx.save()
     ctx.strokeStyle = '#fff27a'
@@ -4636,7 +4695,7 @@ class VectorShooter {
     ctx.fillStyle = '#fff27a'
     ctx.font = '12px Courier New'
     ctx.textAlign = 'center'
-    ctx.fillText('RETURN BEACON', p.x, p.y - this.returnBeacon.radius - 12)
+    ctx.fillText(`RETURN BEACON ${distance}`, p.x, p.y - this.returnBeacon.radius - 12)
     ctx.restore()
   }
 
@@ -4644,8 +4703,9 @@ class VectorShooter {
     if (this.state !== 'playing' || !this.autoNavActive) return
     const p = this.worldToScreen(this.player.x, this.player.y)
     const target = this.autoNavTargetPlanetId ? this.planets.find((planet) => planet.id === this.autoNavTargetPlanetId) : null
+    const beaconTarget = this.autoNavTargetBeacon ? this.returnBeacon : null
     const level = this.navigationCruiseLevel()
-    const color = this.build.nav <= 0 ? '#57fff3' : this.build.nav >= 6 ? '#fff27a' : '#70a8ff'
+    const color = beaconTarget ? '#fff27a' : this.build.nav <= 0 ? '#57fff3' : this.build.nav >= 6 ? '#fff27a' : '#70a8ff'
     ctx.save()
     ctx.strokeStyle = color
     ctx.shadowColor = color
@@ -4663,6 +4723,15 @@ class VectorShooter {
       ctx.globalAlpha = 0.78
       ctx.beginPath()
       ctx.arc(t.x, t.y, target.radius + 16 + Math.sin(this.stats.time * 5) * 3, 0, TAU)
+      ctx.stroke()
+    } else if (beaconTarget) {
+      const t = this.worldToScreen(beaconTarget.x, beaconTarget.y)
+      ctx.lineTo(t.x, t.y)
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.globalAlpha = 0.78
+      ctx.beginPath()
+      ctx.arc(t.x, t.y, beaconTarget.radius + 12 + Math.sin(this.stats.time * 5) * 4, 0, TAU)
       ctx.stroke()
     } else {
       const length = 62 + level * 13
@@ -5395,7 +5464,17 @@ class VectorShooter {
       return
     }
     const planet = this.planets.find((p) => Math.sqrt(dist2(p, this.player)) < p.radius + 86)
-    this.ui.touchAction.textContent = planet ? 'LAND' : this.autoNavTargetPlanetId ? 'LOCKED' : this.build.nav >= 3 ? 'LOCK' : 'USE'
+    this.ui.touchAction.textContent = planet
+      ? 'LAND'
+      : this.autoNavTargetBeacon
+        ? 'LOCKED'
+        : this.returnBeacon
+          ? 'BEACON'
+          : this.autoNavTargetPlanetId
+            ? 'LOCKED'
+            : this.build.nav >= 3
+              ? 'LOCK'
+              : 'USE'
     this.ui.touchDash.textContent = 'DASH'
   }
 
@@ -5954,6 +6033,7 @@ class VectorShooter {
       skippedBeacons: this.skippedReturnBeacons
     }
     this.returnBeacon = null
+    this.autoNavTargetBeacon = false
     this.state = 'debrief'
     this.renderDebrief()
   }
@@ -6123,6 +6203,7 @@ class VectorShooter {
     this.autoNavHeading = 0
     this.autoNavActive = false
     this.autoNavTargetPlanetId = null
+    this.autoNavTargetBeacon = false
     this.orbitReturnPoint = null
     this.surface = null
     this.returnBeacon = null
