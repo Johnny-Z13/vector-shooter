@@ -1814,7 +1814,7 @@ class VectorShooter {
     const nearShip = Math.sqrt(dist2(this.surface.pilot, this.surface.ship)) < 64
     const lore = this.findNearbyLoreSite()
     const alien = this.findNearbyAlien()
-    if (this.surface.o2Returning && nearShip) this.startTakeoff({ urgent: true })
+    if (this.surface.o2Returning && nearShip) this.startTakeoff()
     else if (input.interact && lore) this.inspectLoreSite(lore)
     else if (input.interact && alien) this.openAlienEncounter(alien)
     else if (input.interact && nearShip) this.startTakeoff()
@@ -1841,7 +1841,7 @@ class VectorShooter {
       this.surface.message = 'O2 LOW - RETURNING TO SHIP'
       this.toast('O2 LOW - RETURNING TO SHIP')
     }
-    if (this.surface.pilot.oxygen <= 0) this.startTakeoff({ urgent: true })
+    if (this.surface.pilot.oxygen <= 0) this.startTakeoff()
   }
 
   private getInput() {
@@ -2524,7 +2524,7 @@ class VectorShooter {
     if (pilot.health <= 0) {
       this.surface.message = 'SUIT CRITICAL - RETURNING TO SHIP'
       this.toast('SUIT CRITICAL - RETURNING TO SHIP')
-      this.startTakeoff({ urgent: true })
+      this.startTakeoff()
     }
   }
 

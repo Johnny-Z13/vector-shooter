@@ -17,7 +17,8 @@ test('low oxygen auto returns the surface pilot to the ship', () => {
 
   expect(main).toContain("this.toast('O2 LOW - RETURNING TO SHIP')")
   expect(main).toContain('this.surface.o2Returning = true')
-  expect(main).toContain('this.startTakeoff({ urgent: true })')
+  expect(main).toContain('this.startTakeoff()')
+  expect(main).not.toContain('this.startTakeoff({ urgent: true })')
 })
 
 test('surface tech upgrades improve suit timer health and gun output', () => {
