@@ -26,6 +26,23 @@ import { navigationCruiseScalar, navigationTrailProfile } from './navigation-cru
 import { ONBOARDING_PLANET_COUNT, onboardingPlanetSlot, useOnboardingPlanetField } from './onboarding-planets'
 import { pickupMagnetRange, pickupMagnetStrength } from './pickup-magnet'
 import { planetRadius } from './planet-sizing'
+import {
+  evolutions,
+  limitBreakChoices,
+  pickupBalance,
+  powerupBalance,
+  relics,
+  upgrades,
+  workbenchBalance,
+  type Evolution,
+  type LimitId,
+  type Relic,
+  type RelicId,
+  type Upgrade,
+  type UpgradeBucket,
+  type UpgradeCategory,
+  type UpgradeId
+} from './powerup-balance'
 import { pressurePackSize, shouldRecycleEnemy } from './spawn-pressure'
 import {
   cameraTargetFor,
@@ -64,38 +81,9 @@ type PickupKind = 'xp' | 'repair' | 'magnet' | 'core' | 'chest'
 type EnemyKind = SpaceEnemyKind
 type SurfaceResourceKind = 'crystal' | 'scrap' | 'repair' | 'cache'
 type GraphicsMode = 'LOW' | 'MED' | 'GLOW'
-type UpgradeCategory = 'weapon' | 'system'
-type UpgradeBucket = 'weapons' | 'navigation' | 'survival' | 'economy' | 'planetcraft' | 'spacesuit' | 'control'
-type RelicId = 'staticIdol' | 'glassReactor' | 'deadSunCoin' | 'hungryCompass' | 'blackBoxSaint' | 'mirrorSeed' | 'saintCapacitor' | 'forbiddenMap'
-type LimitId = 'might' | 'cooldown' | 'amount' | 'speed' | 'magnet' | 'hull'
 type AlienGiftKind = 'herb' | 'idol' | 'map' | 'coin'
 type ArtifactKind = 'relic' | 'alien' | 'lore' | 'planet' | 'cache'
 type WorkbenchView = 'upgrades' | 'manifest' | 'artifacts'
-type UpgradeId =
-  | 'rapid'
-  | 'split'
-  | 'pierce'
-  | 'mine'
-  | 'chain'
-  | 'rift'
-  | 'engine'
-  | 'nav'
-  | 'magnet'
-  | 'shield'
-  | 'repair'
-  | 'orbit'
-  | 'rail'
-  | 'echo'
-  | 'vampire'
-  | 'survey'
-  | 'luck'
-  | 'cargo'
-  | 'heat'
-  | 'phase'
-  | 'suitO2'
-  | 'suitHealth'
-  | 'suitBlaster'
-
 interface Vec {
   x: number
   y: number
@@ -289,35 +277,6 @@ interface SurfaceRun {
   message: string
 }
 
-interface Upgrade {
-  id: UpgradeId
-  name: string
-  category: UpgradeCategory
-  bucket: UpgradeBucket
-  description: string
-  max: number
-  rarity: number
-  levels: string[]
-  catalyst?: RelicId
-  evolutionName?: string
-  evolutionDescription?: string
-}
-
-interface Relic {
-  id: RelicId
-  name: string
-  description: string
-  rarity: number
-  downside?: string
-}
-
-interface Evolution {
-  weapon: UpgradeId
-  relic: RelicId
-  name: string
-  description: string
-}
-
 interface ArtifactRecord {
   id: string
   kind: ArtifactKind
@@ -387,293 +346,8 @@ const MAX_SHOCKWAVES = 12
 const MAX_BULLETS = 220
 const MAX_ENEMIES = 320
 const MAX_PICKUPS = 220
-const BASE_FIRE_COOLDOWN = 0.234
-const MIN_FIRE_COOLDOWN = 0.055
-const XP_PICKUP_RADIUS = 5.6
-const XP_PICKUP_MERGE_RADIUS_STEP = 0.45
-const XP_PICKUP_MERGE_RADIUS_MAX = 12.6
-const XP_PICKUP_OUTER_HALO = 9.8
-const DEFAULT_PICKUP_RADIUS = 8
-const CHEST_PICKUP_RADIUS = 16
 const ENEMY_RECYCLE_RADIUS = 2200
 const ENEMY_PRESSURE_RADIUS = 1250
-
-const upgrades: Upgrade[] = [
-  {
-    id: 'rapid',
-    name: 'Pulse Cannon',
-    category: 'weapon',
-    bucket: 'weapons',
-    description: 'The main damage bucket: faster pulse rhythm, harder hits, and double-pulse pressure.',
-    max: 8,
-    rarity: 100,
-    catalyst: 'staticIdol',
-    evolutionName: 'Choir Cannon',
-    evolutionDescription: 'Pulse fire becomes a three-note volley with a brighter synth chord.',
-    levels: ['Base pulse stabilizer', '-8% fire cooldown', '+12% pulse damage', '-8% fire cooldown', 'Every fifth shot double-pulses', '+15% projectile speed', '-10% fire cooldown', 'Evolution-ready']
-  },
-  {
-    id: 'split',
-    name: 'Prism Barrel',
-    category: 'weapon',
-    bucket: 'weapons',
-    description: 'The screen-control bucket: more rays, a wider fan, and better crowd trimming.',
-    max: 6,
-    rarity: 86,
-    catalyst: 'glassReactor',
-    evolutionName: 'Shatter Prism',
-    evolutionDescription: 'The fan gains two extra rays and cracks through nearby targets.',
-    levels: ['+1 side ray', 'Tighter fan control', '+1 side ray', '+10% ray damage', '+1 side ray', 'Evolution-ready']
-  },
-  {
-    id: 'pierce',
-    name: 'Ghost Rounds',
-    category: 'weapon',
-    bucket: 'weapons',
-    description: 'The horde-cutting bucket: pulses travel through bodies instead of dying early.',
-    max: 5,
-    rarity: 80,
-    levels: ['+1 pierce', '+1 pierce', '+10% pulse damage', '+1 pierce', '+2 pierce']
-  },
-  {
-    id: 'rail',
-    name: 'Rail Lattice',
-    category: 'weapon',
-    bucket: 'weapons',
-    description: 'The elite-delete bucket: regular fire is interrupted by huge piercing lances.',
-    max: 6,
-    rarity: 62,
-    catalyst: 'deadSunCoin',
-    evolutionName: 'Solar Lance',
-    evolutionDescription: 'Rail shots become screen-splitting sun lances with heavy pierce.',
-    levels: ['Every 8th shot rails', '+15% rail damage', 'Every 7th shot rails', '+2 rail pierce', 'Every 6th shot rails', 'Evolution-ready']
-  },
-  {
-    id: 'echo',
-    name: 'Echo Chamber',
-    category: 'weapon',
-    bucket: 'weapons',
-    description: 'The projectile-quality bucket: longer life, more speed, and resonant wake damage.',
-    max: 5,
-    rarity: 70,
-    catalyst: 'blackBoxSaint',
-    evolutionName: 'Resonance Wake',
-    evolutionDescription: 'Shots leave damaging vector trails after passing through enemies.',
-    levels: ['+18% bullet lifetime', '+8% projectile speed', '+18% bullet lifetime', '+12% echo damage', 'Evolution-ready']
-  },
-  {
-    id: 'orbit',
-    name: 'Ion Moons',
-    category: 'weapon',
-    bucket: 'weapons',
-    description: 'The close-defense bucket: orbitals punish anything that crowds the hull.',
-    max: 6,
-    rarity: 72,
-    catalyst: 'hungryCompass',
-    evolutionName: 'Gravity Halo',
-    evolutionDescription: 'Orbitals pull enemies inward before cutting them apart.',
-    levels: ['+1 orbital', '+10% orbital radius', '+1 orbital', '+15% orbital damage', '+1 orbital', 'Evolution-ready']
-  },
-  {
-    id: 'mine',
-    name: 'Mine Wake',
-    category: 'weapon',
-    bucket: 'control',
-    description: 'The dash-control bucket: movement leaves traps and turns escapes into damage.',
-    max: 5,
-    rarity: 55,
-    catalyst: 'forbiddenMap',
-    evolutionName: 'Comet Net',
-    evolutionDescription: 'Dash mines link into explosive constellations.',
-    levels: ['Dash drops 2 mines', '+20% mine damage', '+1 mine', 'Mines last longer', 'Evolution-ready']
-  },
-  {
-    id: 'chain',
-    name: 'Static Arc',
-    category: 'weapon',
-    bucket: 'weapons',
-    description: 'The chain-reaction bucket: pulse impacts jump through tight packs.',
-    max: 5,
-    rarity: 50,
-    catalyst: 'saintCapacitor',
-    evolutionName: 'Storm Liturgy',
-    evolutionDescription: 'Chain lightning erupts from pulse impacts and surface pistol shots.',
-    levels: ['+1 chain hop', '+10% arc damage', '+1 chain hop', '+1 chain hop', 'Evolution-ready']
-  },
-  {
-    id: 'rift',
-    name: 'Rift Needle',
-    category: 'weapon',
-    bucket: 'weapons',
-    description: 'The boss-hunter bucket: rare heavy needles punch through elite targets.',
-    max: 5,
-    rarity: 45,
-    catalyst: 'mirrorSeed',
-    evolutionName: 'Black Needle',
-    evolutionDescription: 'Rare needles execute wounded elites and bosses.',
-    levels: ['Every 11th shot fires a needle', '+18% needle damage', 'Every 9th shot fires a needle', '+2 needle pierce', 'Evolution-ready']
-  },
-  {
-    id: 'engine',
-    name: 'Drift Engine',
-    category: 'system',
-    bucket: 'navigation',
-    description: 'The manual handling bucket: more speed, longer dash burns, sharper recovery, shorter dash cooldown.',
-    max: 6,
-    rarity: 95,
-    levels: ['+18 move speed', 'Dash carries farther', '-8% dash cooldown', '+18 move speed', '+0.08s dash invulnerability', '+22 move speed']
-  },
-  {
-    id: 'nav',
-    name: 'Nav Ghost',
-    category: 'system',
-    bucket: 'navigation',
-    description: 'The low-input autonomy bucket: base cruise gets faster, smarter, and better at holding intent.',
-    max: 7,
-    rarity: 82,
-    levels: ['Vector Memory: stronger course hold and faster cruise', 'Course Bend: nudges have more authority', 'Planet Lock: USE locks onto the nearest planet beacon', 'Threat Weave: autopilot curves away from nearby enemies', 'Salvage Bias: idle cruise bends toward valuable drops', 'Overdrive Nav: faster cruise and sharper heading changes', 'Ghost Pilot: stronger autonomous steering when your thumb lifts']
-  },
-  {
-    id: 'magnet',
-    name: 'Signal Magnet',
-    category: 'system',
-    bucket: 'economy',
-    description: 'The collection bucket: fewer missed shards, richer routes, more numbers vacuumed in.',
-    max: 6,
-    rarity: 92,
-    levels: ['+62 pickup range', '+12% pickup speed', '+62 pickup range', '+12% pickup speed', '+72 pickup range', 'Vacuum pings last longer']
-  },
-  {
-    id: 'shield',
-    name: 'Halo Battery',
-    category: 'system',
-    bucket: 'survival',
-    description: 'The mistake-forgiveness bucket: a regenerating buffer before hull damage matters.',
-    max: 5,
-    rarity: 78,
-    levels: ['+18 max shield', '+20% shield regen', '+18 max shield', '-12% recharge delay', '+28 max shield']
-  },
-  {
-    id: 'repair',
-    name: 'Hull Stitcher',
-    category: 'system',
-    bucket: 'survival',
-    description: 'The long-run hull bucket: bigger maximum hull and full repairs on install.',
-    max: 5,
-    rarity: 78,
-    levels: ['+18 max hull and full repair', '+12% repair value', '+18 max hull and full repair', '+12% repair value', '+26 max hull and full repair']
-  },
-  {
-    id: 'vampire',
-    name: 'Salvage Hunger',
-    category: 'system',
-    bucket: 'survival',
-    description: 'The sustain bucket: enemy wreckage can become emergency repair.',
-    max: 4,
-    rarity: 52,
-    levels: ['+2.5% repair drop chance', '+2.5% repair drop chance', 'Repair drops pull faster', '+3.5% repair drop chance']
-  },
-  {
-    id: 'survey',
-    name: 'Survey Array',
-    category: 'system',
-    bucket: 'planetcraft',
-    description: 'The planet-reading bucket: clearer cache rumors, safer mystery boxes, better relic odds.',
-    max: 4,
-    rarity: 58,
-    levels: ['Planet cache rumors improve', '+8% relic discovery', '-10% ambush chance', 'Hidden cache pings appear more often']
-  },
-  {
-    id: 'luck',
-    name: 'Luck Coil',
-    category: 'system',
-    bucket: 'economy',
-    description: 'The jackpot bucket: more fourth choices, rarer rolls, and better mystery outcomes.',
-    max: 5,
-    rarity: 54,
-    levels: ['+10% rare roll pressure', '+8% fourth choice chance', '+10% relic chance', '+8% fourth choice chance', 'Cache jackpots become more likely']
-  },
-  {
-    id: 'cargo',
-    name: 'Cargo Spine',
-    category: 'system',
-    bucket: 'economy',
-    description: 'The planet-profit bucket: surface salvage pays out more resources and score.',
-    max: 4,
-    rarity: 66,
-    levels: ['+15% planet resources', '+1 core from first cache', '+15% planet resources', '+25% cache score']
-  },
-  {
-    id: 'heat',
-    name: 'Heat Sink',
-    category: 'system',
-    bucket: 'control',
-    description: 'The weapon-tempo bucket: high fire-rate builds stay fast and stable.',
-    max: 4,
-    rarity: 62,
-    levels: ['-3% weapon cooldown', '+8% projectile speed', '-3% weapon cooldown', 'Rail and needle shots cool faster']
-  },
-  {
-    id: 'phase',
-    name: 'Phase Rudder',
-    category: 'system',
-    bucket: 'control',
-    description: 'The panic-button bucket: safer dashes, brief ram damage, softer collisions, stronger escape shockwaves.',
-    max: 4,
-    rarity: 58,
-    levels: ['+0.09s dash invulnerability', 'Dash ram shocks enemies', '+0.09s dash invulnerability', 'Dash shockwave knocks enemies back harder']
-  },
-  {
-    id: 'suitO2',
-    name: 'Exo-Lung',
-    category: 'system',
-    bucket: 'spacesuit',
-    description: 'The surface timer bucket: longer oxygen reserves for planet runs.',
-    max: 5,
-    rarity: 64,
-    levels: ['+14s max O2', '+12s max O2', 'Low-O2 return starts later', '+14s max O2', '+18s max O2']
-  },
-  {
-    id: 'suitHealth',
-    name: 'Skinweave Suit',
-    category: 'system',
-    bucket: 'spacesuit',
-    description: 'The human survival bucket: more surface health and better field repairs.',
-    max: 4,
-    rarity: 66,
-    levels: ['+18 max human health', '+15% surface repair', '+18 max human health', '+24 max human health']
-  },
-  {
-    id: 'suitBlaster',
-    name: 'Field Blaster',
-    category: 'weapon',
-    bucket: 'spacesuit',
-    description: 'The human weapon bucket: surface pistol shots hit harder and cycle faster.',
-    max: 5,
-    rarity: 58,
-    levels: ['+4 surface gun damage', '-6% surface gun cooldown', '+4 surface gun damage', '+40 surface shot speed', '-8% surface gun cooldown']
-  }
-]
-
-const relics: Relic[] = [
-  { id: 'staticIdol', name: 'Static Idol', rarity: 42, description: 'Pulse weapons arc with little religious sparks.', downside: 'Planet ambush odds rise slightly.' },
-  { id: 'glassReactor', name: 'Glass Reactor', rarity: 38, description: 'A dangerous lens that turns spread fire into cutting light.', downside: 'Shield recharge delay is longer.' },
-  { id: 'deadSunCoin', name: 'Dead Sun Coin', rarity: 34, description: 'Boss caches become richer and rail weapons wake up.', downside: 'Hunters hear you after takeoff.' },
-  { id: 'hungryCompass', name: 'Hungry Compass', rarity: 42, description: 'The map pulls loot, enemies, and fate toward the ship.', downside: 'Enemy steering gets a little more aggressive.' },
-  { id: 'blackBoxSaint', name: 'Black Box Saint', rarity: 30, description: 'Every cache sounds like it remembers another run.', downside: 'Caches sometimes summon stranger surface threats.' },
-  { id: 'mirrorSeed', name: 'Mirror Seed', rarity: 30, description: 'Rerolls bend toward impossible needles and second chances.', downside: 'Cursed offers become more common.' },
-  { id: 'saintCapacitor', name: 'Saint Capacitor', rarity: 36, description: 'Stores a planet pulse for lightning-heavy builds.', downside: 'Mining pulse cooldown is longer.' },
-  { id: 'forbiddenMap', name: 'Forbidden Map', rarity: 26, description: 'Reveals hidden cache logic and mine constellations.', downside: 'Elite patrols track your signal.' }
-]
-
-const evolutions: Evolution[] = upgrades
-  .filter((upgrade) => upgrade.catalyst && upgrade.evolutionName && upgrade.evolutionDescription)
-  .map((upgrade) => ({
-    weapon: upgrade.id,
-    relic: upgrade.catalyst!,
-    name: upgrade.evolutionName!,
-    description: upgrade.evolutionDescription!
-  }))
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
@@ -1596,8 +1270,9 @@ class VectorShooter {
     if (this.toastTimer <= 0) this.ui.toast.classList.remove('visible')
 
     if (this.player.maxShield > 0 && this.player.shieldDelay <= 0) {
-      const reactorPenalty = this.relics.has('glassReactor') ? 0.7 : 1
-      this.player.shield = clamp(this.player.shield + dt * (4 + this.build.shield * 3) * reactorPenalty, 0, this.player.maxShield)
+      const reactorPenalty = this.relics.has('glassReactor') ? powerupBalance.ship.glassReactorShieldRegenMultiplier : 1
+      const shieldRegen = powerupBalance.ship.shieldBaseRegenPerSecond + this.build.shield * powerupBalance.ship.shieldRegenPerRank
+      this.player.shield = clamp(this.player.shield + dt * shieldRegen * reactorPenalty, 0, this.player.maxShield)
     }
 
     this.updatePlayer(dt)
@@ -1642,8 +1317,14 @@ class VectorShooter {
   private updatePlayer(dt: number) {
     const input = this.getInput()
     const move = this.resolveNavigationMove(input.move, input.moveActive, dt)
-    const accel = (1680 + this.build.engine * 210 + this.build.nav * 82) * dt
-    const maxSpeed = this.player.speed + this.build.engine * 36 + this.build.nav * 18
+    const accel = (
+      powerupBalance.ship.accelerationBase
+      + this.build.engine * powerupBalance.ship.accelerationPerEngineRank
+      + this.build.nav * powerupBalance.ship.accelerationPerNavRank
+    ) * dt
+    const maxSpeed = this.player.speed
+      + this.build.engine * powerupBalance.ship.maxSpeedPerEngineRank
+      + this.build.nav * powerupBalance.ship.maxSpeedPerNavRank
     this.player.vx += move.x * accel
     this.player.vy += move.y * accel
     const speed = len(this.player.vx, this.player.vy)
@@ -1692,20 +1373,34 @@ class VectorShooter {
   }
 
   private dashDuration() {
-    return clamp(0.14 + this.build.engine * 0.014 + this.build.phase * 0.004, 0.14, 0.24)
+    return clamp(
+      powerupBalance.dash.durationBase
+        + this.build.engine * powerupBalance.dash.durationPerEngineRank
+        + this.build.phase * powerupBalance.dash.durationPerPhaseRank,
+      powerupBalance.dash.durationBase,
+      powerupBalance.dash.durationMax
+    )
   }
 
   private dashSpeed() {
-    return 760 + this.build.engine * 34 + this.build.phase * 18
+    return powerupBalance.dash.speedBase
+      + this.build.engine * powerupBalance.dash.speedPerEngineRank
+      + this.build.phase * powerupBalance.dash.speedPerPhaseRank
   }
 
   private dashCooldown() {
-    return clamp(1.15 - this.build.engine * 0.12 - this.build.heat * 0.025, 0.48, 1.15)
+    return clamp(
+      powerupBalance.dash.cooldownBase
+        - this.build.engine * powerupBalance.dash.cooldownReductionPerEngineRank
+        - this.build.heat * powerupBalance.dash.cooldownReductionPerHeatRank,
+      powerupBalance.dash.cooldownMin,
+      powerupBalance.dash.cooldownBase
+    )
   }
 
   private dashInvulnerability() {
-    const engineBonus = this.build.engine >= 5 ? 0.08 : 0
-    return 0.22 + engineBonus + this.build.phase * 0.09
+    const engineBonus = this.build.engine >= powerupBalance.dash.engineInvulnerabilityThreshold ? powerupBalance.dash.engineInvulnerabilityBonus : 0
+    return powerupBalance.dash.invulnerabilityBase + engineBonus + this.build.phase * powerupBalance.dash.invulnerabilityPerPhaseRank
   }
 
   private resolveNavigationMove(move: Vec, moveActive: boolean, dt: number): Vec {
@@ -1776,13 +1471,15 @@ class VectorShooter {
   private bestNavigationPickup() {
     let best: Pickup | null = null
     let bestScore = 0
-    const reach = 760 + this.build.nav * 90 + this.build.magnet * 26
+    const reach = powerupBalance.ship.navPickupReachBase
+      + this.build.nav * powerupBalance.ship.navPickupReachPerNavRank
+      + this.build.magnet * powerupBalance.ship.navPickupReachPerMagnetRank
     const reach2 = reach * reach
     for (const pickup of this.pickups) {
       const d = dist2(pickup, this.player)
       if (d > reach2) continue
       const kindValue = pickup.kind === 'chest' ? 9 : pickup.kind === 'core' ? 7 : pickup.kind === 'repair' ? 5 : pickup.kind === 'magnet' ? 4 : 1
-      const score = kindValue / Math.max(120, d)
+      const score = kindValue / Math.max(powerupBalance.ship.navPickupMinScoreDistance, d)
       if (score > bestScore) {
         bestScore = score
         best = pickup
@@ -1954,17 +1651,17 @@ class VectorShooter {
     this.updateSurfaceOxygen(dt)
     if (this.state !== 'surface' || !this.surface) return
 
-    const accel = 1080 * dt
+    const accel = powerupBalance.ship.surfaceAcceleration * dt
     this.surface.pilot.vx += input.move.x * accel
     this.surface.pilot.vy += input.move.y * accel
     if (this.surface.o2Returning) {
       const toShip = norm(this.surface.ship.x - this.surface.pilot.x, this.surface.ship.y - this.surface.pilot.y)
-      this.surface.pilot.vx += toShip.x * 1360 * dt
-      this.surface.pilot.vy += toShip.y * 1360 * dt
+      this.surface.pilot.vx += toShip.x * powerupBalance.ship.surfaceReturnAcceleration * dt
+      this.surface.pilot.vy += toShip.y * powerupBalance.ship.surfaceReturnAcceleration * dt
       this.surface.pilot.facing = Math.atan2(toShip.y, toShip.x)
     }
     const speed = len(this.surface.pilot.vx, this.surface.pilot.vy)
-    const maxSpeed = 178 + this.build.engine * 10
+    const maxSpeed = powerupBalance.ship.surfaceMaxSpeedBase + this.build.engine * powerupBalance.ship.surfaceMaxSpeedPerEngineRank
     if (speed > maxSpeed) {
       this.surface.pilot.vx = (this.surface.pilot.vx / speed) * maxSpeed
       this.surface.pilot.vy = (this.surface.pilot.vy / speed) * maxSpeed
@@ -2136,21 +1833,26 @@ class VectorShooter {
     const level = this.build.mine
     if (level <= 0) return
     const evolved = this.evolved.has('mine')
-    const count = Math.min(6, 1 + Math.ceil(level / 2) + (evolved ? 2 : 0))
+    const count = Math.min(
+      powerupBalance.mineWake.maxMines,
+      powerupBalance.mineWake.baseMines
+        + Math.ceil(level / powerupBalance.mineWake.ranksPerExtraMine)
+        + (evolved ? powerupBalance.mineWake.evolvedMineBonus : 0)
+    )
     const side = { x: -direction.y, y: direction.x }
     for (let i = 0; i < count; i += 1) {
       if (this.bullets.length > MAX_BULLETS) this.bullets.shift()
       const offset = i - (count - 1) / 2
       this.bullets.push({
-        x: this.player.x - direction.x * (28 + i * 8) + side.x * offset * 18,
-        y: this.player.y - direction.y * (28 + i * 8) + side.y * offset * 18,
-        vx: -direction.x * 24,
-        vy: -direction.y * 24,
-        life: 1.25 + level * 0.22 + (evolved ? 0.55 : 0),
-        damage: 20 + level * 7 + this.limitBreaks.might * 1.5,
-        radius: evolved ? 18 : 13,
+        x: this.player.x - direction.x * (powerupBalance.mineWake.backOffsetBase + i * powerupBalance.mineWake.backOffsetStep) + side.x * offset * powerupBalance.mineWake.sideOffsetStep,
+        y: this.player.y - direction.y * (powerupBalance.mineWake.backOffsetBase + i * powerupBalance.mineWake.backOffsetStep) + side.y * offset * powerupBalance.mineWake.sideOffsetStep,
+        vx: -direction.x * powerupBalance.mineWake.driftSpeed,
+        vy: -direction.y * powerupBalance.mineWake.driftSpeed,
+        life: powerupBalance.mineWake.lifeBase + level * powerupBalance.mineWake.lifePerRank + (evolved ? powerupBalance.mineWake.evolvedLifeBonus : 0),
+        damage: powerupBalance.mineWake.damageBase + level * powerupBalance.mineWake.damagePerRank + this.limitBreaks.might * powerupBalance.mineWake.limitMightDamagePerRank,
+        radius: evolved ? powerupBalance.mineWake.evolvedRadius : powerupBalance.mineWake.radius,
         color: evolved ? '#fff27a' : '#70a8ff',
-        pierce: evolved ? 5 : 2,
+        pierce: evolved ? powerupBalance.mineWake.evolvedPierce : powerupBalance.mineWake.pierce,
         mine: true
       })
     }
@@ -2166,32 +1868,62 @@ class VectorShooter {
     const storm = this.evolved.has('chain')
     const blackNeedle = this.evolved.has('rift')
     const glassRisk = this.relics.has('glassReactor') ? 1.12 : 1
-    this.player.fireCd = clamp((BASE_FIRE_COOLDOWN - rapid * 0.014 - this.build.heat * 0.006 - this.limitBreaks.cooldown * 0.004) * (choir ? 0.88 : 1), MIN_FIRE_COOLDOWN, BASE_FIRE_COOLDOWN)
-    const damage = (14 + this.stats.level * 0.65 + this.build.rail * 2 + this.build.rift * 2 + this.limitBreaks.might * 1.6) * glassRisk
-    const speed = 780 + this.build.echo * 55 + this.build.heat * 18 + this.limitBreaks.speed * 14
-    const count = 1 + this.build.split + (shatter ? 2 : 0) + Math.floor(this.limitBreaks.amount / 3)
-    const spread = count === 1 ? 0 : clamp(0.12 + count * 0.035, 0.12, 0.31)
-    const rail = this.build.rail > 0 && this.fireSerial % Math.max((solar ? 6 : 8) - this.build.rail, 3) === 0
-    const needle = this.build.rift > 0 && this.fireSerial % Math.max((blackNeedle ? 9 : 12) - this.build.rift, 4) === 0
+    this.player.fireCd = clamp(
+      (
+        powerupBalance.weapon.baseFireCooldown
+        - rapid * powerupBalance.weapon.rapidCooldownPerRank
+        - this.build.heat * powerupBalance.weapon.heatCooldownPerRank
+        - this.limitBreaks.cooldown * powerupBalance.weapon.limitCooldownPerRank
+      ) * (choir ? powerupBalance.weapon.choirCooldownMultiplier : 1),
+      powerupBalance.weapon.minFireCooldown,
+      powerupBalance.weapon.baseFireCooldown
+    )
+    const damage = (
+      powerupBalance.weapon.baseDamage
+      + this.stats.level * powerupBalance.weapon.damagePerLevel
+      + this.build.rail * powerupBalance.weapon.railDamagePerRank
+      + this.build.rift * powerupBalance.weapon.riftDamagePerRank
+      + this.limitBreaks.might * powerupBalance.weapon.limitMightDamagePerRank
+    ) * glassRisk
+    const speed = powerupBalance.weapon.baseProjectileSpeed
+      + this.build.echo * powerupBalance.weapon.echoProjectileSpeedPerRank
+      + this.build.heat * powerupBalance.weapon.heatProjectileSpeedPerRank
+      + this.limitBreaks.speed * powerupBalance.weapon.limitSpeedProjectileSpeedPerRank
+    const count = 1 + this.build.split + (shatter ? powerupBalance.weapon.shatterExtraRays : 0) + Math.floor(this.limitBreaks.amount / powerupBalance.weapon.limitAmountRanksPerExtraRay)
+    const spread = count === 1 ? 0 : clamp(
+      powerupBalance.weapon.spreadBase + count * powerupBalance.weapon.spreadPerRay,
+      powerupBalance.weapon.spreadBase,
+      powerupBalance.weapon.spreadMax
+    )
+    const railInterval = Math.max((solar ? powerupBalance.weapon.solarRailBaseInterval : powerupBalance.weapon.railBaseInterval) - this.build.rail, powerupBalance.weapon.railMinimumInterval)
+    const needleInterval = Math.max((blackNeedle ? powerupBalance.weapon.blackNeedleBaseInterval : powerupBalance.weapon.needleBaseInterval) - this.build.rift, powerupBalance.weapon.needleMinimumInterval)
+    const rail = this.build.rail > 0 && this.fireSerial % railInterval === 0
+    const needle = this.build.rift > 0 && this.fireSerial % needleInterval === 0
     const pulseColor = storm ? '#8fff7d' : choir ? '#f6fffe' : this.build.heat >= 3 ? '#ff9d5c' : this.build.pierce >= 3 ? '#70a8ff' : '#57fff3'
     const volleys = choir ? 2 : 1
     this.fireSerial += 1
     for (let v = 0; v < volleys; v += 1) {
       for (let i = 0; i < count; i += 1) {
-        const offset = (count === 1 ? 0 : (i - (count - 1) / 2) * spread) + (volleys === 1 ? 0 : (v - 0.5) * 0.055)
+        const offset = (count === 1 ? 0 : (i - (count - 1) / 2) * spread) + (volleys === 1 ? 0 : (v - 0.5) * powerupBalance.weapon.volleyOffset)
         const a = this.player.aimAngle + offset
         this.bullets.push({
           x: this.player.x + Math.cos(a) * 22,
           y: this.player.y + Math.sin(a) * 22,
           vx: Math.cos(a) * speed + this.player.vx * 0.14,
           vy: Math.sin(a) * speed + this.player.vy * 0.14,
-          life: rail ? 0.86 + (solar ? 0.28 : 0) : 0.62 + this.build.echo * 0.13 + (resonance ? 0.24 : 0),
-          damage: rail ? damage * (solar ? 3.4 : 2.4) : damage * (shatter && i !== Math.floor(count / 2) ? 0.82 : 1),
+          life: rail
+            ? powerupBalance.weapon.railBaseLife + (solar ? powerupBalance.weapon.solarRailLifeBonus : 0)
+            : powerupBalance.weapon.pulseBaseLife + this.build.echo * powerupBalance.weapon.echoLifePerRank + (resonance ? powerupBalance.weapon.resonanceLifeBonus : 0),
+          damage: rail
+            ? damage * (solar ? powerupBalance.weapon.solarRailDamageMultiplier : powerupBalance.weapon.railDamageMultiplier)
+            : damage * (shatter && i !== Math.floor(count / 2) ? powerupBalance.weapon.shatterSideRayDamageMultiplier : 1),
           radius: rail ? (solar ? 7 : 5) : 3.5,
           color: rail ? '#fff27a' : needle ? '#b990ff' : pulseColor,
-          pierce: rail ? 7 + this.build.pierce + (solar ? 5 : 0) : this.build.pierce + (resonance ? 1 : 0),
+          pierce: rail
+            ? powerupBalance.weapon.railPierceBase + this.build.pierce + (solar ? powerupBalance.weapon.solarRailPierceBonus : 0)
+            : this.build.pierce + (resonance ? powerupBalance.weapon.resonancePierceBonus : 0),
           rail,
-          chain: this.build.chain + (storm ? 3 : 0)
+          chain: this.build.chain + (storm ? powerupBalance.weapon.stormChainBonus : 0)
         })
       }
     }
@@ -2200,15 +1932,15 @@ class VectorShooter {
       this.bullets.push({
         x: this.player.x + Math.cos(a) * 24,
         y: this.player.y + Math.sin(a) * 24,
-        vx: Math.cos(a) * (speed * 0.62),
-        vy: Math.sin(a) * (speed * 0.62),
-        life: 1.1,
-        damage: damage * (blackNeedle ? 5.2 : 3.4),
-        radius: blackNeedle ? 9 : 6,
+        vx: Math.cos(a) * (speed * powerupBalance.weapon.needleSpeedMultiplier),
+        vy: Math.sin(a) * (speed * powerupBalance.weapon.needleSpeedMultiplier),
+        life: powerupBalance.weapon.needleLife,
+        damage: damage * (blackNeedle ? powerupBalance.weapon.blackNeedleDamageMultiplier : powerupBalance.weapon.needleDamageMultiplier),
+        radius: blackNeedle ? powerupBalance.weapon.blackNeedleRadius : powerupBalance.weapon.needleRadius,
         color: blackNeedle ? '#ffffff' : '#b990ff',
-        pierce: 4 + this.build.rift + (blackNeedle ? 8 : 0),
+        pierce: powerupBalance.weapon.needlePierceBase + this.build.rift + (blackNeedle ? powerupBalance.weapon.blackNeedlePierceBonus : 0),
         rail: true,
-        chain: storm ? 2 : 0
+        chain: storm ? powerupBalance.weapon.stormNeedleChainBonus : 0
       })
     }
     this.audio.fire(this.weaponSoundKind(rail, needle, count), this.stats.level + rapid)
@@ -2263,7 +1995,7 @@ class VectorShooter {
   private spawnChainBolt(source: Bullet, hit: Enemy) {
     if (this.bullets.length > MAX_BULLETS - 4) return
     let best: Enemy | null = null
-    let bestD = (220 + this.build.chain * 26) ** 2
+    let bestD = (powerupBalance.chain.rangeBase + this.build.chain * powerupBalance.chain.rangePerRank) ** 2
     for (const enemy of this.enemies) {
       if (enemy === hit || enemy.hp <= 0) continue
       const d = (enemy.x - hit.x) ** 2 + (enemy.y - hit.y) ** 2
@@ -2543,8 +2275,10 @@ class VectorShooter {
 
   private tryDashRam(e: Enemy) {
     if (this.player.dashTime <= 0 || this.build.phase <= 0) return false
-    const force = 260 + this.build.phase * 70
-    const damage = 16 + this.build.phase * 9 + this.build.engine * 1.5
+    const force = powerupBalance.dash.ramForceBase + this.build.phase * powerupBalance.dash.ramForcePerPhaseRank
+    const damage = powerupBalance.dash.ramDamageBase
+      + this.build.phase * powerupBalance.dash.ramDamagePerPhaseRank
+      + this.build.engine * powerupBalance.dash.ramDamagePerEngineRank
     e.hp -= damage
     e.flash = Math.max(e.flash, 0.12)
     e.vx += this.player.dashX * force
@@ -2582,14 +2316,18 @@ class VectorShooter {
   private updateOrbitals(dt: number) {
     const count = this.build.orbit
     if (count <= 0) return
-    const radius = 66 + count * 8
+    const radius = powerupBalance.orbit.radiusBase + count * powerupBalance.orbit.radiusPerRank
     const gravity = this.evolved.has('orbit')
-    const damage = (18 + count * 5 + this.limitBreaks.might * 1.4) * (gravity ? 1.35 : 1) * dt
+    const damage = (
+      powerupBalance.orbit.damageBase
+      + count * powerupBalance.orbit.damagePerRank
+      + this.limitBreaks.might * powerupBalance.orbit.limitMightDamagePerRank
+    ) * (gravity ? powerupBalance.orbit.gravityDamageMultiplier : 1) * dt
     for (const e of this.enemies) {
-      if (gravity && (e.x - this.player.x) ** 2 + (e.y - this.player.y) ** 2 < (radius + 90) ** 2) {
+      if (gravity && (e.x - this.player.x) ** 2 + (e.y - this.player.y) ** 2 < (radius + powerupBalance.orbit.gravityPullRadiusBonus) ** 2) {
         const pull = norm(this.player.x - e.x, this.player.y - e.y)
-        e.vx += pull.x * 28 * dt
-        e.vy += pull.y * 28 * dt
+        e.vx += pull.x * powerupBalance.orbit.gravityPullForce * dt
+        e.vy += pull.y * powerupBalance.orbit.gravityPullForce * dt
       }
       for (let i = 0; i < count; i += 1) {
         const a = this.stats.time * (2.4 + count * 0.18) + (i / count) * TAU
@@ -2734,8 +2472,12 @@ class VectorShooter {
           this.enemies.push(child)
         }
       }
-      if (Math.random() < 0.03 + this.build.vampire * 0.025) this.drop('repair', e.x, e.y, 14)
-      if (Math.random() < 0.008 + this.stats.time / 50000) this.drop('magnet', e.x, e.y, 1)
+      if (Math.random() < powerupBalance.upgradeApply.vampireRepairDropBaseChance + this.build.vampire * powerupBalance.upgradeApply.vampireRepairDropChancePerRank) {
+        this.drop('repair', e.x, e.y, powerupBalance.upgradeApply.vampireRepairDropValue)
+      }
+      if (Math.random() < powerupBalance.upgradeApply.magnetDropBaseChance + this.stats.time * powerupBalance.upgradeApply.magnetDropChancePerSecond) {
+        this.drop('magnet', e.x, e.y, powerupBalance.upgradeApply.magnetDropValue)
+      }
     }
   }
 
@@ -2775,7 +2517,7 @@ class VectorShooter {
     if (this.player.invuln > 0) return
     this.player.invuln = 0.42
     this.player.shieldDelay = 2.4
-    let remaining = Math.max(1, amount * (1 - this.build.phase * 0.08))
+    let remaining = Math.max(1, amount * (1 - this.build.phase * powerupBalance.upgradeApply.phaseShipDamageReductionPerRank))
     if (this.player.shield > 0) {
       const used = Math.min(this.player.shield, remaining)
       this.player.shield -= used
@@ -2791,7 +2533,7 @@ class VectorShooter {
     if (!this.surface || this.surface.pilot.invuln > 0) return
     const pilot = this.surface.pilot
     pilot.invuln = 0.65
-    pilot.health = Math.max(0, pilot.health - Math.max(1, amount * (1 - this.build.phase * 0.05)))
+    pilot.health = Math.max(0, pilot.health - Math.max(1, amount * (1 - this.build.phase * powerupBalance.upgradeApply.phaseSurfaceDamageReductionPerRank)))
     this.audio.hit()
     this.camera.shake = Math.max(this.camera.shake, 10)
     this.burst(pilot.x, pilot.y, '#ff5d73', 12, 180)
@@ -2808,10 +2550,10 @@ class VectorShooter {
         if (pickup.kind !== 'xp') continue
         const dx = pickup.x - x
         const dy = pickup.y - y
-        if (dx * dx + dy * dy > 120 * 120) continue
+        if (dx * dx + dy * dy > pickupBalance.xp.mergeDistance * pickupBalance.xp.mergeDistance) continue
         pickup.value += value
         pickup.life = Math.max(pickup.life, 22)
-        pickup.radius = clamp(pickup.radius + XP_PICKUP_MERGE_RADIUS_STEP, XP_PICKUP_RADIUS, XP_PICKUP_MERGE_RADIUS_MAX)
+        pickup.radius = clamp(pickup.radius + pickupBalance.xp.mergeRadiusStep, pickupBalance.xp.radius, pickupBalance.xp.mergeRadiusMax)
         pickup.vx += rand(-18, 18)
         pickup.vy += rand(-18, 18)
         return
@@ -2823,10 +2565,10 @@ class VectorShooter {
       else this.pickups.shift()
     }
     const a = Math.random() * TAU
-    const speed = rand(80, 220)
+    const speed = rand(pickupBalance.scatterSpeedMin, pickupBalance.scatterSpeedMax)
     const color = kind === 'xp' ? '#57fff3' : kind === 'repair' ? '#8fff7d' : kind === 'chest' ? '#fff27a' : '#b990ff'
-    const radius = kind === 'chest' ? CHEST_PICKUP_RADIUS : kind === 'xp' ? XP_PICKUP_RADIUS : DEFAULT_PICKUP_RADIUS
-    this.pickups.push({ kind, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, value, radius, life: kind === 'xp' ? 42 : 999, color })
+    const radius = kind === 'chest' ? pickupBalance.chestRadius : kind === 'xp' ? pickupBalance.xp.radius : pickupBalance.defaultRadius
+    this.pickups.push({ kind, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, value, radius, life: kind === 'xp' ? pickupBalance.xp.lifeSeconds : pickupBalance.persistentLifeSeconds, color })
   }
 
   private collect(p: Pickup) {
@@ -2863,8 +2605,10 @@ class VectorShooter {
     this.workbenchInstalling = false
     this.workbenchView = 'upgrades'
     const benchTier = this.mothership.departments.workbench
-    const fourthChoiceChance = 0.08 + this.build.luck * 0.08 + (benchTier >= 2 ? 0.08 : 0)
-    const count = 3 + (rare || Math.random() < fourthChoiceChance ? 1 : 0)
+    const fourthChoiceChance = workbenchBalance.fourthChoiceBaseChance
+      + this.build.luck * workbenchBalance.fourthChoiceLuckChancePerRank
+      + (benchTier >= 2 ? workbenchBalance.fourthChoiceWorkbenchBonus : 0)
+    const count = workbenchBalance.baseChoiceCount + (rare || Math.random() < fourthChoiceChance ? 1 : 0)
     this.upgradeChoices = this.rollUpgrades(count, rare)
     this.renderLevelUp(title, copy)
   }
@@ -2877,7 +2621,7 @@ class VectorShooter {
   private rollUpgrades(count: number, rare = false): WorkbenchChoice[] {
     const choices: WorkbenchChoice[] = []
     const evo = this.availableEvolutions()
-    if (evo.length && (rare || Math.random() < 0.55 + this.build.luck * 0.06)) {
+    if (evo.length && (rare || Math.random() < workbenchBalance.evolutionChanceBase + this.build.luck * workbenchBalance.evolutionChanceLuckPerRank)) {
       choices.push({ kind: 'evolution', evolution: evo[Math.floor(Math.random() * evo.length)] })
     }
     const relic = this.rollRelicChoice(rare)
@@ -2894,12 +2638,14 @@ class VectorShooter {
 
   private weightedUpgrade(pool: Upgrade[], rare: boolean) {
     const benchTier = this.mothership.departments.workbench
-    const ownedBias = 1.55 + this.build.luck * 0.08 + (benchTier >= 3 ? 0.2 : 0)
-    const rareBias = rare ? 0.72 : 1
+    const ownedBias = workbenchBalance.ownedBiasBase
+      + this.build.luck * workbenchBalance.ownedBiasLuckPerRank
+      + (benchTier >= 3 ? workbenchBalance.ownedBiasWorkbenchBonus : 0)
+    const rareBias = rare ? workbenchBalance.rareUpgradeWeightMultiplier : 1
     const weights = pool.map((upgrade) => {
       const owned = this.build[upgrade.id] > 0
-      const weaponFocus = upgrade.category === 'weapon' ? 1.08 : 1
-      return Math.max(1, upgrade.rarity * (owned ? ownedBias : 1) * weaponFocus * (upgrade.rarity < 60 ? rareBias : 1))
+      const weaponFocus = upgrade.category === 'weapon' ? workbenchBalance.weaponFocusWeight : 1
+      return Math.max(1, upgrade.rarity * (owned ? ownedBias : 1) * weaponFocus * (upgrade.rarity < workbenchBalance.rareUpgradeRarityThreshold ? rareBias : 1))
     })
     let roll = Math.random() * weights.reduce((sum, weight) => sum + weight, 0)
     for (let i = 0; i < pool.length; i += 1) {
@@ -2912,7 +2658,9 @@ class VectorShooter {
   private rollRelicChoice(rare: boolean): Relic | null {
     const missing = relics.filter((relic) => !this.relics.has(relic.id))
     if (!missing.length) return null
-    const chance = (rare ? 0.2 : 0.04) + this.build.luck * 0.025 + this.build.survey * 0.018
+    const chance = (rare ? workbenchBalance.relicChanceRare : workbenchBalance.relicChanceBase)
+      + this.build.luck * workbenchBalance.relicChanceLuckPerRank
+      + this.build.survey * workbenchBalance.relicChanceSurveyPerRank
     if (Math.random() > chance) return null
     let roll = Math.random() * missing.reduce((sum, relic) => sum + relic.rarity, 0)
     for (const relic of missing) {
@@ -2923,15 +2671,7 @@ class VectorShooter {
   }
 
   private rollLimitBreak(): WorkbenchChoice {
-    const options: Array<{ id: LimitId; name: string; description: string }> = [
-      { id: 'might', name: 'Limit: Might', description: '+3% weapon damage. Stacks forever.' },
-      { id: 'cooldown', name: 'Limit: Cooldown', description: '-0.4% weapon cooldown. Stacks forever.' },
-      { id: 'amount', name: 'Limit: Amount', description: 'Every third rank adds another prism ray.' },
-      { id: 'speed', name: 'Limit: Velocity', description: '+2% projectile speed. Stacks forever.' },
-      { id: 'magnet', name: 'Limit: Magnet', description: '+4% pickup reach. Stacks forever.' },
-      { id: 'hull', name: 'Limit: Hull', description: '+3 max hull and a small repair.' }
-    ]
-    return { kind: 'limit', ...options[Math.floor(Math.random() * options.length)] }
+    return { kind: 'limit', ...limitBreakChoices[Math.floor(Math.random() * limitBreakChoices.length)] }
   }
 
   private availableEvolutions() {
@@ -2970,18 +2710,18 @@ class VectorShooter {
       return
     }
     this.build[upgrade.id] = nextLevel
-    if (upgrade.id === 'engine') this.player.speed += 18
+    if (upgrade.id === 'engine') this.player.speed += powerupBalance.upgradeApply.engineSpeedPerRank
     if (upgrade.id === 'nav') {
       this.autoNavActive = true
       this.autoNavHeading = len(this.player.vx, this.player.vy) > 20 ? Math.atan2(this.player.vy, this.player.vx) : this.player.angle
       if (nextLevel === 1) this.toast('NAV GHOST TUNED TO YOUR DRIFT')
     }
     if (upgrade.id === 'shield') {
-      this.player.maxShield += 18
+      this.player.maxShield += powerupBalance.upgradeApply.shieldCapacityPerRank
       this.player.shield = this.player.maxShield
     }
     if (upgrade.id === 'repair') {
-      this.player.maxHull += 18
+      this.player.maxHull += powerupBalance.upgradeApply.repairHullPerRank
       this.player.hull = this.player.maxHull
     }
     if (upgrade.id === 'suitHealth' && this.surface) {
@@ -2992,7 +2732,7 @@ class VectorShooter {
       this.surface.pilot.maxOxygen = this.surfaceMaxOxygen()
       this.surface.pilot.oxygen = this.surface.pilot.maxOxygen
     }
-    if (upgrade.id === 'magnet') this.stats.score += 60
+    if (upgrade.id === 'magnet') this.stats.score += powerupBalance.upgradeApply.magnetInstallScore
     this.camera.shake = Math.max(this.camera.shake, upgrade.category === 'weapon' ? 7 : 5)
     const anchor = this.fxAnchor()
     const color = this.upgradeFxColor(upgrade)
@@ -3263,27 +3003,33 @@ class VectorShooter {
   }
 
   private surfaceMaxHealth() {
-    return 86 + this.build.suitHealth * 18
+    return powerupBalance.surface.baseHealth + this.build.suitHealth * powerupBalance.surface.healthPerSuitRank
   }
 
   private surfaceMaxOxygen() {
-    return 42 + this.build.suitO2 * 14
+    return powerupBalance.surface.baseOxygen + this.build.suitO2 * powerupBalance.surface.oxygenPerSuitRank
   }
 
   private surfaceLowOxygenRatio() {
-    return this.build.suitO2 >= 3 ? 0.12 : 0.18
+    return this.build.suitO2 >= powerupBalance.surface.lowOxygenSuitThreshold
+      ? powerupBalance.surface.lowOxygenRatioUpgraded
+      : powerupBalance.surface.lowOxygenRatioBase
   }
 
   private surfaceGunDamage() {
-    return 18 + this.build.suitBlaster * 4
+    return powerupBalance.surface.baseGunDamage + this.build.suitBlaster * powerupBalance.surface.gunDamagePerBlasterRank
   }
 
   private surfaceGunCooldown() {
-    return clamp(0.22 - this.build.suitBlaster * 0.014, 0.14, 0.22)
+    return clamp(
+      powerupBalance.surface.baseGunCooldown - this.build.suitBlaster * powerupBalance.surface.gunCooldownPerBlasterRank,
+      powerupBalance.surface.minGunCooldown,
+      powerupBalance.surface.baseGunCooldown
+    )
   }
 
   private surfaceGunSpeed() {
-    return 540 + this.build.suitBlaster * 40
+    return powerupBalance.surface.baseGunSpeed + this.build.suitBlaster * powerupBalance.surface.gunSpeedPerBlasterRank
   }
 
   private surfaceThreatKeepouts(pilot: Vec, ship: Vec) {
@@ -3552,7 +3298,7 @@ class VectorShooter {
       this.audio.pickup(resource.kind)
       this.burst(resource.x, resource.y, resource.color, resource.kind === 'cache' ? 22 : 10, resource.kind === 'cache' ? 240 : 140)
       if (resource.kind === 'crystal') {
-        const gained = Math.ceil(resource.value * (1 + this.build.cargo * 0.15))
+        const gained = Math.ceil(resource.value * (1 + this.build.cargo * powerupBalance.upgradeApply.cargoResourceBonusPerRank))
         this.resources.crystal += gained
         this.stats.xp += resource.value
         this.stats.score += resource.value * 12
@@ -3564,11 +3310,11 @@ class VectorShooter {
           this.bankUpgrade()
         }
       } else if (resource.kind === 'scrap') {
-        const gained = Math.ceil(resource.value * (1 + this.build.cargo * 0.15))
+        const gained = Math.ceil(resource.value * (1 + this.build.cargo * powerupBalance.upgradeApply.cargoResourceBonusPerRank))
         this.resources.scrap += gained
         this.stats.score += gained
       } else if (resource.kind === 'repair') {
-        const surfaceRepair = resource.value * (1 + this.build.suitHealth * 0.15)
+        const surfaceRepair = resource.value * (1 + this.build.suitHealth * powerupBalance.upgradeApply.suitRepairBonusPerRank)
         this.surface.pilot.health = clamp(this.surface.pilot.health + surfaceRepair, 0, this.surface.pilot.maxHealth)
       } else if (resource.kind === 'cache') {
         this.resolvePlanetCache(resource)
@@ -3587,15 +3333,18 @@ class VectorShooter {
       color: this.artifactColor('cache', `${this.surface.planet.id}:${resource.x}:${resource.y}`),
       icon: hashString(`${this.surface.planet.id}:${resource.x}:${resource.y}`, 67) % 12
     })
-    const luck = this.build.luck * 0.06 + this.build.survey * 0.035
-    const cargoBonus = 1 + this.build.cargo * 0.15
-    this.stats.score += Math.floor((450 + this.stats.level * 45) * (1 + this.build.cargo * 0.06))
-    this.resources.scrap += Math.ceil(rand(10, 24) * cargoBonus)
-    this.resources.crystal += Math.ceil(rand(3, 9) * cargoBonus)
-    this.resources.cores += 1 + (this.build.cargo >= 2 ? 1 : 0)
+    const luck = this.build.luck * powerupBalance.planetCache.luckRelicChancePerRank + this.build.survey * powerupBalance.planetCache.surveyRelicChancePerRank
+    const cargoBonus = 1 + this.build.cargo * powerupBalance.upgradeApply.cargoResourceBonusPerRank
+    this.stats.score += Math.floor(
+      (powerupBalance.planetCache.scoreBase + this.stats.level * powerupBalance.planetCache.scorePerLevel)
+      * (1 + this.build.cargo * powerupBalance.upgradeApply.cargoCacheScoreBonusPerRank)
+    )
+    this.resources.scrap += Math.ceil(rand(powerupBalance.planetCache.scrapMin, powerupBalance.planetCache.scrapMax) * cargoBonus)
+    this.resources.crystal += Math.ceil(rand(powerupBalance.planetCache.crystalMin, powerupBalance.planetCache.crystalMax) * cargoBonus)
+    this.resources.cores += powerupBalance.planetCache.coresBase + (this.build.cargo >= powerupBalance.upgradeApply.cargoCoreBonusThreshold ? powerupBalance.upgradeApply.cargoCoreBonus : 0)
     const missingRelics = relics.filter((relic) => !this.relics.has(relic.id))
-    const relicChance = 0.18 + luck
-    const extraSignalChance = 0.38 + luck
+    const relicChance = powerupBalance.planetCache.relicChanceBase + luck
+    const extraSignalChance = powerupBalance.planetCache.extraSignalChanceBase + luck
     if (missingRelics.length && Math.random() < relicChance) {
       const relic = missingRelics[Math.floor(Math.random() * missingRelics.length)]
       this.acquireRelic(relic)
@@ -3610,7 +3359,12 @@ class VectorShooter {
       this.bankUpgrade('BONUS MUTATION SIGNAL FOUND IN CACHE')
     }
     const cacheMessage = this.surface.message
-    const ambushChance = Math.max(0.08, 0.28 - this.build.survey * 0.04 + (this.relics.has('staticIdol') ? 0.06 : 0))
+    const ambushChance = Math.max(
+      powerupBalance.planetCache.ambushChanceMin,
+      powerupBalance.planetCache.ambushChanceBase
+        - this.build.survey * powerupBalance.planetCache.ambushChanceReductionPerSurveyRank
+        + (this.relics.has('staticIdol') ? powerupBalance.planetCache.staticIdolAmbushChancePenalty : 0)
+    )
     if (Math.random() < ambushChance) {
       const keepouts = this.surfaceThreatKeepouts(this.surface.pilot, this.surface.ship)
       for (let i = 0; i < 2 + Math.floor(this.stats.time / 90); i += 1) {
@@ -3718,7 +3472,7 @@ class VectorShooter {
       icon: hashString(`${site.kind}:${site.title}`, 31) % 12
     })
     let decodedSignal = false
-    if (Math.random() < 0.18 + this.build.survey * 0.04) {
+    if (Math.random() < powerupBalance.upgradeApply.loreSignalBaseChance + this.build.survey * powerupBalance.upgradeApply.loreSignalSurveyChancePerRank) {
       this.surface.pendingUpgrade = true
       this.bankUpgrade('OLD SIGNAL DECODED: MUTATION SIGNAL BANKED')
       decodedSignal = true
@@ -3817,8 +3571,8 @@ class VectorShooter {
       this.toast('ALIEN GIFT REFUSED')
       return
     }
-    const luck = this.build.luck * 0.04 + this.build.survey * 0.025
-    const good = Math.random() < 0.62 + luck
+    const luck = this.build.luck * powerupBalance.upgradeApply.alienGiftLuckPerRank + this.build.survey * powerupBalance.upgradeApply.alienGiftSurveyPerRank
+    const good = Math.random() < powerupBalance.upgradeApply.alienGiftGoodBaseChance + luck
     if (good) this.applyGoodAlienGift(alien)
     else this.applyBadAlienGift(alien)
   }
@@ -3831,7 +3585,7 @@ class VectorShooter {
       this.surface.message = 'THE HERB IS SWEET. HULL KNITS SHUT.'
     } else if (alien.gift === 'idol') {
       const missingRelics = relics.filter((relic) => !this.relics.has(relic.id))
-      if (missingRelics.length && Math.random() < 0.45 + this.build.luck * 0.04) {
+      if (missingRelics.length && Math.random() < powerupBalance.upgradeApply.alienIdolRelicBaseChance + this.build.luck * powerupBalance.upgradeApply.alienIdolRelicLuckChancePerRank) {
         this.acquireRelic(missingRelics[Math.floor(Math.random() * missingRelics.length)], 'ALIEN ARTEFACT CLAIMED')
         this.surface.message = 'THE IDOL OPENS INTO A RARE ARTEFACT.'
       } else {
@@ -5129,7 +4883,9 @@ class VectorShooter {
     const hullGlow = this.build.repair + this.limitBreaks.hull
     const navGlow = this.build.nav
     const travelSpeed = len(this.player.vx, this.player.vy)
-    const speedCap = this.player.speed + this.build.engine * 36 + this.build.nav * 18
+    const speedCap = this.player.speed
+      + this.build.engine * powerupBalance.ship.maxSpeedPerEngineRank
+      + this.build.nav * powerupBalance.ship.maxSpeedPerNavRank
     const trail = navigationTrailProfile({ navRank: navGlow, speedRatio: speedCap > 0 ? travelSpeed / speedCap : 0 })
     const hullColor = this.evolved.size > 0 ? '#fff27a' : weaponGlow > 8 ? '#f6fffe' : '#57fff3'
     const exhaustColor = this.build.heat >= 3 ? '#ff9d5c' : navGlow >= 5 ? '#fff27a' : this.build.engine >= 3 || navGlow > 0 ? '#70a8ff' : '#57fff3'
@@ -5627,7 +5383,7 @@ class VectorShooter {
       ctx.lineWidth = 2
       const pulse = 1 + Math.sin(this.stats.time * 5 + p.value) * 0.08
       const r = p.radius * pulse * scale
-      const outerGlow = p.kind === 'xp' ? r + XP_PICKUP_RADIUS : r + DEFAULT_PICKUP_RADIUS
+      const outerGlow = p.kind === 'xp' ? r + pickupBalance.xp.radius : r + pickupBalance.defaultRadius
       ctx.globalAlpha = 0.28
       ctx.beginPath()
       ctx.arc(0, 0, outerGlow, 0, TAU)
@@ -5668,7 +5424,7 @@ class VectorShooter {
       if (p.kind === 'xp') {
         ctx.globalAlpha = 0.42
         ctx.beginPath()
-        ctx.arc(0, 0, r + XP_PICKUP_OUTER_HALO, 0, TAU)
+        ctx.arc(0, 0, r + pickupBalance.xp.outerHalo, 0, TAU)
         ctx.stroke()
       }
       ctx.restore()
@@ -5999,7 +5755,7 @@ class VectorShooter {
       reroll.addEventListener('click', () => {
         if (this.workbenchRerolls <= 0 || this.workbenchInstalling) return
         this.workbenchRerolls -= 1
-        this.upgradeChoices = this.rollUpgrades(this.upgradeChoices.length || 3)
+        this.upgradeChoices = this.rollUpgrades(this.upgradeChoices.length || workbenchBalance.baseChoiceCount)
         this.renderLevelUp(title, copy)
       })
       tabs.append(reroll)
@@ -6033,8 +5789,8 @@ class VectorShooter {
 
   private recycleWorkbenchSignal() {
     if (this.workbenchInstalling || this.pendingUpgrades <= 0 || this.mothership.departments.workbench < 4) return
-    const scrap = 70 + Math.floor(this.stats.level * 8)
-    const crystal = 4 + Math.floor(this.stats.planets * 2)
+    const scrap = workbenchBalance.recycleScrapBase + Math.floor(this.stats.level * workbenchBalance.recycleScrapPerLevel)
+    const crystal = workbenchBalance.recycleCrystalBase + Math.floor(this.stats.planets * workbenchBalance.recycleCrystalPerPlanet)
     this.resources.scrap += scrap
     this.resources.crystal += crystal
     this.pendingUpgrades = Math.max(0, this.pendingUpgrades - 1)
@@ -6058,12 +5814,12 @@ class VectorShooter {
       button.disabled = true
       button.classList.add('invalid')
       this.toast('SYSTEM ALREADY MAXED')
-      this.upgradeChoices = this.rollUpgrades(this.upgradeChoices.length || 3)
+      this.upgradeChoices = this.rollUpgrades(this.upgradeChoices.length || workbenchBalance.baseChoiceCount)
       this.renderLevelUp('SHIPBOARD WORKBENCH', `${this.pendingUpgrades} mutation signal${this.pendingUpgrades === 1 ? '' : 's'} remain before takeoff.`)
       return
     }
     this.workbenchInstalling = true
-    const rare = choice.kind !== 'upgrade' || choice.upgrade.rarity < 65
+    const rare = choice.kind !== 'upgrade' || choice.upgrade.rarity < workbenchBalance.rareInstallRarityThreshold
     this.audio.install(this.installCueFor(choice), rare)
     this.camera.shake = Math.max(this.camera.shake, rare ? 10 : 6)
     const color = choice.kind === 'evolution' || choice.kind === 'relic' ? '#fff27a' : choice.kind === 'limit' ? '#70a8ff' : this.upgradeFxColor(choice.upgrade)
@@ -6072,7 +5828,10 @@ class VectorShooter {
     this.burst(anchor.x, anchor.y, color, rare ? 28 : 18, rare ? 260 : 190)
     button.classList.add('selected')
     for (const el of Array.from(this.ui.levelup.querySelectorAll<HTMLButtonElement>('.choice'))) el.disabled = true
-    window.setTimeout(() => this.applyWorkbenchChoice(choice), rare ? 760 : 560)
+    window.setTimeout(
+      () => this.applyWorkbenchChoice(choice),
+      (rare ? workbenchBalance.rareInstallDelaySeconds : workbenchBalance.installDelaySeconds) * 1000
+    )
   }
 
   private installCueFor(choice: WorkbenchChoice): AudioUpgradeCue {

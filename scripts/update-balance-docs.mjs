@@ -6,10 +6,13 @@ const read = (path) => readFileSync(resolve(root, path), 'utf8')
 const write = (path, text) => writeFileSync(resolve(root, path), text)
 
 const balance = read('src/game-balance.ts')
+const powerups = read('src/powerup-balance.ts')
 const activeMode = balance.match(/export const GAME_BALANCE_MODE = '([^']+)'/)?.[1] ?? 'unknown'
 const profileBlock = balance.match(new RegExp(`${activeMode}: \\{([\\s\\S]*?)\\n  \\}`))?.[1] ?? ''
 const label = profileBlock.match(/label: '([^']+)'/)?.[1] ?? activeMode
 const multiplier = (name) => profileBlock.match(new RegExp(`${name}: ([0-9.]+)`))?.[1] ?? ''
+const configValue = (name) => powerups.match(new RegExp(`${name}: ([0-9.]+)`))?.[1] ?? ''
+const scopedConfigValue = (scope, name) => powerups.match(new RegExp(`${scope}: \\{[\\s\\S]*?${name}: ([0-9.]+)`))?.[1] ?? ''
 
 const enemyRows = [...balance.matchAll(/^\s+(\w+): \{ hp: ([0-9.]+), radius: ([0-9.]+), speed: ([0-9.]+), value: ([0-9.]+), color: '[^']+', contactDamage: ([0-9.]+), timeGateSeconds: ([0-9.]+), spawnRollCeiling: ([0-9.]+)/gm)]
   .map((match) => `| ${match[1]} | ${match[2]} | ${match[4]} | ${match[6]} | ${match[7]}s | ${match[8]} |`)
@@ -36,7 +39,21 @@ Active balance mode: \`${activeMode}\` (${label}).
 | --- | ---: | ---: | ---: | ---: | ---: |
 ${enemyRows}
 
-Generated from \`src/game-balance.ts\`. Do not edit this section by hand.`
+### Power-Up Balance Snapshot
+
+| System | Value |
+| --- | ---: |
+| Weapon base cooldown | ${configValue('baseFireCooldown')}s |
+| Weapon minimum cooldown | ${configValue('minFireCooldown')}s |
+| Weapon base damage | ${configValue('baseDamage')} |
+| XP pickup radius | ${scopedConfigValue('xp', 'radius')} |
+| XP merge radius max | ${scopedConfigValue('xp', 'mergeRadiusMax')} |
+| Workbench base choices | ${configValue('baseChoiceCount')} |
+| Relic chance base | ${configValue('relicChanceBase')} |
+| Surface gun damage | ${configValue('baseGunDamage')} |
+| Surface health base | ${configValue('baseHealth')} |
+
+Generated from \`src/game-balance.ts\` and \`src/powerup-balance.ts\`. Do not edit this section by hand.`
 
 const replaceGeneratedSection = (path) => {
   const start = '<!-- BALANCE-GENERATED:START -->'

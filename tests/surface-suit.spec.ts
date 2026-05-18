@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test'
 import fs from 'node:fs'
+import { upgrades } from '../src/powerup-balance'
 
 const source = () => fs.readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8')
 
@@ -23,11 +24,9 @@ test('low oxygen auto returns the surface pilot to the ship', () => {
 
 test('surface tech upgrades improve suit timer health and gun output', () => {
   const main = source()
+  const spacesuitUpgrades = upgrades.filter((upgrade) => upgrade.bucket === 'spacesuit').map((upgrade) => upgrade.id)
 
-  expect(main).toContain("id: 'suitO2'")
-  expect(main).toContain("id: 'suitHealth'")
-  expect(main).toContain("id: 'suitBlaster'")
-  expect(main).toContain("bucket: 'spacesuit'")
+  expect(spacesuitUpgrades).toEqual(expect.arrayContaining(['suitO2', 'suitHealth', 'suitBlaster']))
   expect(main).toContain("spacesuit: 'SPACESUIT'")
   expect(main).toContain("choice.upgrade.bucket === 'spacesuit' ? 'SUIT'")
   expect(main).toContain('private surfaceGunDamage()')

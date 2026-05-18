@@ -22,6 +22,14 @@ Galactic Hordes needs balance data to be easy to inspect, edit, test, and docume
 - boss cadence
 - surface threat stats
 
+`src/powerup-balance.ts` is the source of truth for:
+
+- upgrade and relic definitions
+- weapon fire cadence, projectile, evolution, and limit-break tuning
+- pickup radii, merge behavior, and drop lifetime
+- ship movement, dash, shield, surface suit, and upgrade application values
+- planet cache, relic, alien gift, and workbench roll odds
+
 Runtime code may transform these values for elapsed time, planet count, or run state, but the underlying constants must live in the balance module with descriptive names.
 
 ## Difficulty Profiles
@@ -36,7 +44,7 @@ The active mode is a single exported value in `src/game-balance.ts`. During deve
 
 ## Documentation Hook
 
-`scripts/update-balance-docs.mjs` reads `src/game-balance.ts` and updates generated balance sections in:
+`scripts/update-balance-docs.mjs` reads `src/game-balance.ts` and `src/powerup-balance.ts`, then updates generated balance sections in:
 
 - `README.md`
 - `docs/game-balance-design.md`
@@ -74,5 +82,19 @@ Active balance mode: `testEasy` (Testing Easy).
 | skimmer | 126 | 176 | 13 | 165s | 0.29 |
 | bulwark | 270 | 86 | 22 | 270s | 0.07 |
 
-Generated from `src/game-balance.ts`. Do not edit this section by hand.
+### Power-Up Balance Snapshot
+
+| System | Value |
+| --- | ---: |
+| Weapon base cooldown | 0.234s |
+| Weapon minimum cooldown | 0.055s |
+| Weapon base damage | 14 |
+| XP pickup radius | 5.6 |
+| XP merge radius max | 12.6 |
+| Workbench base choices | 3 |
+| Relic chance base | 0.18 |
+| Surface gun damage | 18 |
+| Surface health base | 86 |
+
+Generated from `src/game-balance.ts` and `src/powerup-balance.ts`. Do not edit this section by hand.
 <!-- BALANCE-GENERATED:END -->

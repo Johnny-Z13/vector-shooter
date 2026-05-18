@@ -90,7 +90,7 @@ See [docs/upgrade-progression-design.md](docs/upgrade-progression-design.md) for
 
 ## Balance Calibration
 
-Combat and difficulty tuning lives in `src/game-balance.ts`. Run `npm run docs:balance` after changing balance values, or install the local hook with `npm run hooks:install` so the generated balance docs update on commit.
+Combat and difficulty tuning lives in `src/game-balance.ts`. Power-up, pickup, relic, surface suit, cache, and workbench tuning lives in `src/powerup-balance.ts`. Run `npm run docs:balance` after changing balance values, or install the local hook with `npm run hooks:install` so the generated balance docs update on commit.
 
 <!-- BALANCE-GENERATED:START -->
 ### Active Balance Snapshot
@@ -123,7 +123,21 @@ Active balance mode: `testEasy` (Testing Easy).
 | skimmer | 126 | 176 | 13 | 165s | 0.29 |
 | bulwark | 270 | 86 | 22 | 270s | 0.07 |
 
-Generated from `src/game-balance.ts`. Do not edit this section by hand.
+### Power-Up Balance Snapshot
+
+| System | Value |
+| --- | ---: |
+| Weapon base cooldown | 0.234s |
+| Weapon minimum cooldown | 0.055s |
+| Weapon base damage | 14 |
+| XP pickup radius | 5.6 |
+| XP merge radius max | 12.6 |
+| Workbench base choices | 3 |
+| Relic chance base | 0.18 |
+| Surface gun damage | 18 |
+| Surface health base | 86 |
+
+Generated from `src/game-balance.ts` and `src/powerup-balance.ts`. Do not edit this section by hand.
 <!-- BALANCE-GENERATED:END -->
 
 ## Endless Exploration
