@@ -1,7 +1,7 @@
 export type PersistentResourceKey = 'scrap' | 'crystal' | 'cores'
 export type MothershipDepartmentId = 'scanner' | 'workbench' | 'archive' | 'shipyard' | 'signalCore' | 'hangarCrew'
 export type RunOutcomeKind = 'destroyed' | 'cleanExtraction' | 'deepExtraction'
-export type ArchiveKind = 'relic' | 'alien' | 'lore' | 'planet' | 'cache'
+export type ArchiveKind = 'relic' | 'alien' | 'lore' | 'planet' | 'cache' | 'enemy'
 
 export interface ResourceBundle {
   scrap: number

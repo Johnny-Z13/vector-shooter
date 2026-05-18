@@ -7,6 +7,7 @@ import spaceEnemyCatalogUrl from './assets/space-enemy-catalog-alpha.png'
 import surfaceSpacemanSheetUrl from './assets/surface-spaceman-sheet-alpha.png'
 import titleLogoMarkUrl from './assets/title-logo-mark.png'
 import { orderArtifactArchiveCards } from './artifact-archive'
+import { collectionCatalog } from './collection-catalog'
 import {
   activeBalanceProfile,
   balancedSpaceEnemyDefinition,
@@ -83,7 +84,7 @@ type EnemyKind = SpaceEnemyKind
 type SurfaceResourceKind = 'crystal' | 'scrap' | 'repair' | 'cache'
 type GraphicsMode = 'LOW' | 'MED' | 'GLOW'
 type AlienGiftKind = 'herb' | 'idol' | 'map' | 'coin'
-type ArtifactKind = 'relic' | 'alien' | 'lore' | 'planet' | 'cache'
+type ArtifactKind = 'relic' | 'alien' | 'lore' | 'planet' | 'cache' | 'enemy'
 type WorkbenchView = 'upgrades' | 'manifest' | 'artifacts'
 type MothershipConsoleView = 'workbench' | 'manifest' | 'collection'
 type MothershipCollectionFilter = 'default' | 'found' | 'locked'
@@ -341,7 +342,7 @@ const CHUNK_SIZE = 3600
 const CHUNK_LOAD_RADIUS = 1
 const CHUNK_KEEP_RADIUS = 3
 const STORAGE_KEY = 'vector_shooter_high_scores'
-const MOTHERSHIP_STORAGE_KEY = 'galactic_hordes_mothership_v1'
+const MOTHERSHIP_STORAGE_KEY = 'galactic_hordes_mothership_v2'
 const GRID_CELL = 180
 const GRID_STRIDE = 1000
 const MAX_PARTICLES = 300
@@ -351,7 +352,6 @@ const MAX_ENEMIES = 320
 const MAX_PICKUPS = 220
 const ENEMY_RECYCLE_RADIUS = 2200
 const ENEMY_PRESSURE_RADIUS = 1250
-const COLLECTION_TOTAL = 143
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
@@ -2418,6 +2418,7 @@ class VectorShooter {
     const p = spaceEnemySpawnPoint(kind, this.player, 620, 980)
     const scale = spaceEnemyRunScale(this.stats.time, this.stats.planets)
     const base = balancedSpaceEnemyDefinition(kind)
+    this.recordEnemyDiscovery(`enemy:space:${kind}`, `${this.enemyDisplayName(kind)} Vector`, `Encountered in open space after ${formatTime(this.stats.time)}.`, 'Space horde telemetry', base.color)
     this.enemies.push({
       id: this.enemyId++,
       kind,
@@ -2435,6 +2436,10 @@ class VectorShooter {
       color: base.color,
       flash: 0
     })
+  }
+
+  private enemyDisplayName(kind: EnemyKind) {
+    return kind.replace(/([A-Z])/g, ' $1').replace(/^./, (ch) => ch.toUpperCase())
   }
 
   private randomNearPlayer(minR: number, maxR: number): Vec {
@@ -2596,6 +2601,15 @@ class VectorShooter {
       this.build.magnet = clamp(this.build.magnet + 1, 0, upgrades.find((u) => u.id === 'magnet')!.max)
       this.toast('SIGNAL MAGNET TEMPORARILY OVERCHARGED')
     } else if (p.kind === 'chest') {
+      this.recordArtifact({
+        id: 'cache:treasure-core',
+        kind: 'cache',
+        title: 'Treasure Core',
+        detail: 'A space broadcast cache carrying concentrated rewards.',
+        source: 'Space cache telemetry',
+        color: '#70a8ff',
+        icon: 73
+      })
       this.bankUpgrade('TREASURE CORE BANKED. INSTALL IT WHEN YOU BOARD.')
       this.stats.score += 250 + this.stats.level * 35
     }
@@ -2621,6 +2635,15 @@ class VectorShooter {
   }
 
   private openChest() {
+    this.recordArtifact({
+      id: 'cache:treasure-core',
+      kind: 'cache',
+      title: 'Treasure Core',
+      detail: 'A space broadcast cache carrying concentrated rewards.',
+      source: 'Space cache telemetry',
+      color: '#70a8ff',
+      icon: 73
+    })
     this.bankUpgrade('TREASURE CORE BANKED. INSTALL IT WHEN YOU BOARD.')
     this.stats.score += 250 + this.stats.level * 35
   }
@@ -2851,6 +2874,15 @@ class VectorShooter {
 
   private recordPlanetArtifact(planet: Planet, source: string) {
     this.recordArtifact({
+      id: `planet:${planet.archetype}`,
+      kind: 'planet',
+      title: `${planet.archetype.toUpperCase()} WORLD`,
+      detail: `Planet archetype surveyed from ${planet.name}.`,
+      source: 'Planet survey',
+      color: planet.color,
+      icon: hashString(planet.archetype, 19) % 80
+    })
+    this.recordArtifact({
       id: `planet:${planet.id}`,
       kind: 'planet',
       title: planet.name,
@@ -3057,6 +3089,22 @@ class VectorShooter {
       x: 800 + Math.cos(a) * r,
       y: 590 + Math.sin(a) * r
     }, keepouts, event === 'swarm' || event === 'horde' ? 150 : 132, a)
+    const id = event === 'horde'
+      ? 'enemy:surface:horde'
+      : event === 'swarm'
+        ? 'enemy:surface:swarm'
+        : planet.name === 'NULL CATHEDRAL'
+          ? 'enemy:surface:null-cathedral'
+          : 'enemy:surface:standard'
+    const title = event === 'horde'
+      ? 'Horde Larva'
+      : event === 'swarm'
+        ? 'Swarm Skitterer'
+        : planet.name === 'NULL CATHEDRAL'
+          ? 'Cathedral Sentinel'
+          : 'Surface Crawler'
+    const color = event === 'horde' ? '#ff61d8' : planet.name === 'RED MERCY' || planet.name === 'NULL CATHEDRAL' ? '#ff5d73' : '#fff27a'
+    this.recordEnemyDiscovery(id, title, `${planet.name} surface contact.`, 'Planet surface telemetry', color)
     return {
       x: point.x,
       y: point.y,
@@ -3079,7 +3127,7 @@ class VectorShooter {
             ? surfaceThreatBalance.generic.specialRadius
             : surfaceThreatBalance.generic.radius,
       phase: rand(0, TAU),
-      color: event === 'horde' ? '#ff61d8' : planet.name === 'RED MERCY' || planet.name === 'NULL CATHEDRAL' ? '#ff5d73' : '#fff27a',
+      color,
       hit: 0
     }
   }
@@ -3093,6 +3141,8 @@ class VectorShooter {
       x: 800 + Math.cos(angle) * distance,
       y: 590 + Math.sin(angle) * distance
     }, keepouts, 170, angle)
+    const color = ['#57fff3', '#fff27a', '#8fff7d', '#ff61d8', '#d7fff7'][row]
+    this.recordEnemyDiscovery(`enemy:surface:boss:${row}`, `Planet Boss ${row + 1}`, `${planet.name} boss-class biosignal.`, 'Boss catalog telemetry', color)
     return {
       x: point.x,
       y: point.y,
@@ -3101,7 +3151,7 @@ class VectorShooter {
       hp: scaledSurfaceHp(surfaceThreatBalance.boss.baseHp + this.stats.time * surfaceThreatBalance.boss.hpPerSecond + this.stats.level * surfaceThreatBalance.boss.hpPerLevel),
       radius: surfaceThreatBalance.boss.radius,
       phase: rand(0, TAU),
-      color: ['#57fff3', '#fff27a', '#8fff7d', '#ff61d8', '#d7fff7'][row],
+      color,
       hit: 0,
       sprite: 'bossCatalog',
       spriteRow: row,
@@ -3111,6 +3161,7 @@ class VectorShooter {
 
   private createGlassMiteOracleThreat(keepouts: ReturnType<VectorShooter['surfaceThreatKeepouts']>): SurfaceThreat {
     const point = this.safeSurfaceThreatPoint({ x: rand(990, 1080), y: rand(760, 880) }, keepouts, 150, Math.PI * 0.25)
+    this.recordEnemyDiscovery('enemy:surface:oracle', 'Glass Mite Oracle', 'Rare crystalline oracle encountered on a strange surface.', 'Planet surface telemetry', '#57fff3')
     return {
       x: point.x,
       y: point.y,
@@ -3332,7 +3383,7 @@ class VectorShooter {
   private resolvePlanetCache(resource: SurfaceResource) {
     if (!this.surface) return
     this.recordArtifact({
-      id: `cache:${this.surface.planet.id}:${Math.round(resource.x)}:${Math.round(resource.y)}`,
+      id: 'cache:surface',
       kind: 'cache',
       title: 'Surface Cache',
       detail: `${this.surface.event.toUpperCase()} cache cracked open.`,
@@ -3470,7 +3521,7 @@ class VectorShooter {
     this.stats.score += score
     this.resources.crystal += 1
     this.recordArtifact({
-      id: `lore:${this.surface.planet.id}:${site.title}`,
+      id: `lore:${site.kind}`,
       kind: 'lore',
       title: site.title,
       detail: site.copy,
@@ -3563,7 +3614,7 @@ class VectorShooter {
     alien.resolved = true
     this.alienChoice = null
     this.recordArtifact({
-      id: `alien:${this.surface.planet.id}:${alien.name}:${alien.gift}`,
+      id: `alien:${this.collectionSlug(alien.name)}`,
       kind: 'alien',
       title: alien.name,
       detail: `${take ? 'Accepted' : 'Refused'} ${alien.gift.toUpperCase()} gift.`,
@@ -5922,14 +5973,14 @@ class VectorShooter {
     const unlocked = source === 'run'
       ? Array.from(this.artifacts.values())
       : Object.values(this.mothership.archive.records).map((record) => this.normalizeArchiveRecord(record))
-    const counts: Record<ArtifactKind, number> = { relic: 0, alien: 0, lore: 0, planet: 0, cache: 0 }
+    const counts: Record<ArtifactKind, number> = { relic: 0, alien: 0, lore: 0, planet: 0, cache: 0, enemy: 0 }
     for (const artifact of unlocked) counts[artifact.kind] += 1
     summary.innerHTML = `
       <div><b>${counts.relic}/${relics.length}</b><span>relics</span></div>
       <div><b>${counts.alien}</b><span>contacts</span></div>
       <div><b>${counts.lore}</b><span>ruins</span></div>
       <div><b>${counts.planet}</b><span>planets</span></div>
-      <div><b>${counts.cache}</b><span>caches</span></div>
+      <div><b>${counts.enemy}</b><span>enemies</span></div>
     `
     const grid = document.createElement('div')
     grid.className = 'artifact-grid'
@@ -6022,7 +6073,7 @@ class VectorShooter {
     head.className = 'collection-head'
     head.innerHTML = `
       <b>Collection</b>
-      <span>Collected: <strong>${foundCount}</strong> of <strong>${COLLECTION_TOTAL}</strong></span>
+      <span>Collected: <strong>${foundCount}</strong> of <strong>${collectionCatalog.length}</strong></span>
     `
 
     const controls = document.createElement('div')
@@ -6082,26 +6133,27 @@ class VectorShooter {
   }
 
   private collectionCards() {
-    const found = orderArtifactArchiveCards(this.artifactCards('mothership')).filter((card) => !card.locked)
-    const lockedRelics = this.artifactCards('mothership').filter((card) => card.locked)
-    const cards: Array<{ record: ArtifactRecord; locked: boolean }> = [...found, ...lockedRelics]
-    for (let i = cards.length; i < COLLECTION_TOTAL; i += 1) {
-      const id = `locked:${i}`
-      cards.push({
-        locked: true,
-        record: {
-          id,
-          kind: this.lockedCollectionKind(i),
+    const archive = new Map(Object.values(this.mothership.archive.records).map((record) => {
+      const normalized = this.normalizeArchiveRecord(record)
+      return [normalized.id, normalized]
+    }))
+    const cards = collectionCatalog.map((entry) => {
+      const found = archive.get(entry.id)
+      return {
+        locked: !found,
+        record: found ?? {
+          id: entry.id,
+          kind: entry.kind,
           title: 'Unknown Discovery',
           detail: 'Signal not yet recovered.',
-          source: `Archive slot ${String(i + 1).padStart(3, '0')}`,
+          source: 'Locked collection entry',
           color: 'rgba(215, 255, 247, 0.28)',
-          icon: i % 16,
+          icon: entry.icon,
           count: 0
         }
-      })
-    }
-    return cards.slice(0, COLLECTION_TOTAL)
+      }
+    })
+    return orderArtifactArchiveCards(cards)
   }
 
   private filteredCollectionCards(cards: Array<{ record: ArtifactRecord; locked: boolean }>) {
@@ -6124,13 +6176,13 @@ class VectorShooter {
     return 'default'
   }
 
-  private lockedCollectionKind(index: number): ArtifactKind {
-    const kinds: ArtifactKind[] = ['relic', 'alien', 'lore', 'planet', 'cache']
-    return kinds[index % kinds.length]
-  }
-
   private collectionIcon(record: ArtifactRecord, locked = false) {
     const icon = document.createElement('span')
+    if (locked) {
+      icon.className = `collection-icon ${record.kind} locked`
+      icon.textContent = '?'
+      return icon
+    }
     const index = Math.abs(record.icon) % 16
     const col = index % 4
     const row = Math.floor(index / 4)
@@ -6151,13 +6203,30 @@ class VectorShooter {
     this.artifacts.set(record.id, { ...record, count: 1 })
   }
 
+  private recordEnemyDiscovery(id: string, title: string, detail: string, source: string, color: string) {
+    this.recordArtifact({
+      id,
+      kind: 'enemy',
+      title,
+      detail,
+      source,
+      color,
+      icon: hashString(id, 83) % 80
+    })
+  }
+
+  private collectionSlug(value: string) {
+    return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  }
+
   private artifactColor(kind: ArtifactKind, key: string) {
     const palettes: Record<ArtifactKind, string[]> = {
       relic: ['#fff27a', '#f8fffb', '#b990ff'],
       alien: ['#b990ff', '#57fff3', '#8fff7d'],
       lore: ['#d7fff7', '#70a8ff', '#fff27a'],
       planet: ['#57fff3', '#8fff7d', '#ff5d73', '#b990ff'],
-      cache: ['#fff27a', '#70a8ff', '#57fff3']
+      cache: ['#fff27a', '#70a8ff', '#57fff3'],
+      enemy: ['#ff5d73', '#ff61d8', '#fff27a', '#57fff3']
     }
     const colors = palettes[kind]
     return colors[hashString(key, 73) % colors.length]

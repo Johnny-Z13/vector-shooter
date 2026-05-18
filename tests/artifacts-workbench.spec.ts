@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { orderArtifactArchiveCards } from '../src/artifact-archive'
+import { collectionCatalog } from '../src/collection-catalog'
 
 const source = () => readFileSync(resolve(process.cwd(), 'src/main.ts'), 'utf8')
 const styles = () => readFileSync(resolve(process.cwd(), 'src/style.css'), 'utf8')
@@ -22,10 +23,11 @@ test('mothership command integrates workbench manifest and collection tabs', () 
   expect(main).toContain("consolePanel.className = 'mothership-console-stack'")
   expect(main).toContain("type MothershipConsoleView = 'workbench' | 'manifest' | 'collection'")
   expect(main).toContain("type MothershipCollectionFilter = 'default' | 'found' | 'locked'")
-  expect(main).toContain('const COLLECTION_TOTAL = 143')
   expect(main).toContain("this.mothershipConsoleTab('Collection'")
   expect(main).toContain('this.renderCollectionScreen()')
   expect(main).toContain('this.collectionCards()')
+  expect(main).toContain('collectionCatalog.length')
+  expect(main).toContain("const MOTHERSHIP_STORAGE_KEY = 'galactic_hordes_mothership_v2'")
   expect(main).not.toContain('private showMothershipConsole')
   expect(css).toContain('font-family: "Rajdhani", "Oxanium"')
   expect(css).toContain('.mothership-console-tab.active')
@@ -57,6 +59,14 @@ test('artifacts track relics aliens lore and planet finds with generated icons',
   expect(css).toContain('.artifact-grid')
   expect(css).toContain('.collection-icon-grid')
   expect(css).toContain('.collection-detail')
+})
+
+test('collection catalog only contains real discoverable game records', () => {
+  expect(collectionCatalog.length).toBeGreaterThan(30)
+  expect(collectionCatalog.some((entry) => entry.id === 'enemy:space:chaser')).toBe(true)
+  expect(collectionCatalog.some((entry) => entry.id === 'enemy:surface:oracle')).toBe(true)
+  expect(collectionCatalog.some((entry) => entry.id === 'relic:staticIdol')).toBe(true)
+  expect(collectionCatalog.some((entry) => entry.id.startsWith('locked:'))).toBe(false)
 })
 
 test('artifact archive lists found cards before locked unknowns', () => {
