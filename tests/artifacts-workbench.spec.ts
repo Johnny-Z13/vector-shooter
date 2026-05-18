@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { orderArtifactArchiveCards } from '../src/artifact-archive'
-import { collectionCatalog } from '../src/collection-catalog'
+import { collectionCatalog, collectionIconAtlasColumns, collectionIconAtlasRows } from '../src/collection-catalog'
 
 const source = () => readFileSync(resolve(process.cwd(), 'src/main.ts'), 'utf8')
 const styles = () => readFileSync(resolve(process.cwd(), 'src/style.css'), 'utf8')
@@ -22,7 +22,7 @@ test('mothership command integrates workbench manifest and collection tabs', () 
   expect(main).toContain('private renderMothershipConsoleStack()')
   expect(main).toContain("consolePanel.className = 'mothership-console-stack'")
   expect(main).toContain("type MothershipConsoleView = 'workbench' | 'manifest' | 'collection'")
-  expect(main).toContain("type MothershipCollectionFilter = 'default' | 'found' | 'locked'")
+  expect(main).toContain("type MothershipCollectionFilter = 'all' | 'found' | 'locked' | ArtifactKind")
   expect(main).toContain("this.mothershipConsoleTab('Collection'")
   expect(main).toContain('this.renderCollectionScreen()')
   expect(main).toContain('this.collectionCards()')
@@ -32,7 +32,8 @@ test('mothership command integrates workbench manifest and collection tabs', () 
   expect(css).toContain('font-family: "Rajdhani", "Oxanium"')
   expect(css).toContain('.mothership-console-tab.active')
   expect(css).toContain('.collection-controls')
-  expect(css).toContain('.collection-control.filter')
+  expect(css).toContain('.collection-filter-panel')
+  expect(css).toContain('.collection-filter-chip.active')
   expect(css).toContain('clip-path: polygon(0 0, calc(100% - 16px) 0')
 })
 
@@ -62,11 +63,39 @@ test('artifacts track relics aliens lore and planet finds with generated icons',
 })
 
 test('collection catalog only contains real discoverable game records', () => {
+  const iconSet = new Set(collectionCatalog.map((entry) => entry.icon))
+
   expect(collectionCatalog.length).toBeGreaterThan(30)
   expect(collectionCatalog.some((entry) => entry.id === 'enemy:space:chaser')).toBe(true)
   expect(collectionCatalog.some((entry) => entry.id === 'enemy:surface:oracle')).toBe(true)
   expect(collectionCatalog.some((entry) => entry.id === 'relic:staticIdol')).toBe(true)
   expect(collectionCatalog.some((entry) => entry.id.startsWith('locked:'))).toBe(false)
+  expect(iconSet.size).toBe(collectionCatalog.length)
+  expect(Math.max(...iconSet)).toBeLessThan(collectionIconAtlasColumns * collectionIconAtlasRows)
+})
+
+test('collection atlas has enough unique cells for every catalog entry', () => {
+  const atlas = readFileSync(resolve(process.cwd(), 'src/assets/collection-icon-atlas.png'))
+  expect(atlas.toString('ascii', 1, 4)).toBe('PNG')
+  expect(atlas.readUInt32BE(16)).toBe(collectionIconAtlasColumns * 96)
+  expect(atlas.readUInt32BE(20)).toBe(collectionIconAtlasRows * 96)
+  expect(source()).toContain('collectionIconAtlasColumns')
+  expect(source()).toContain('collectionIconAtlasRows')
+  expect(source()).toContain('icon.style.backgroundSize')
+})
+
+test('collection screen supports Vampire Survivors style category filters and detail footer', () => {
+  const main = source()
+  const css = styles()
+
+  expect(main).toContain("this.collectionFilterButton('all')")
+  expect(main).toContain("this.collectionFilterButton('enemy')")
+  expect(main).toContain("this.collectionFilterButton('planet')")
+  expect(main).toContain("if (this.mothershipCollectionFilter !== 'all')")
+  expect(main).toContain('private collectionKindLabel')
+  expect(main).toContain("selected.locked ? 'LOCKED' : 'DISCOVERED'")
+  expect(css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))')
+  expect(css).toContain('.collection-detail small')
 })
 
 test('artifact archive lists found cards before locked unknowns', () => {

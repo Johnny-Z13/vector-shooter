@@ -7,7 +7,7 @@ import spaceEnemyCatalogUrl from './assets/space-enemy-catalog-alpha.png'
 import surfaceSpacemanSheetUrl from './assets/surface-spaceman-sheet-alpha.png'
 import titleLogoMarkUrl from './assets/title-logo-mark.png'
 import { orderArtifactArchiveCards } from './artifact-archive'
-import { collectionCatalog } from './collection-catalog'
+import { collectionCatalog, collectionIconAtlasColumns, collectionIconAtlasRows } from './collection-catalog'
 import {
   activeBalanceProfile,
   balancedSpaceEnemyDefinition,
@@ -87,7 +87,7 @@ type AlienGiftKind = 'herb' | 'idol' | 'map' | 'coin'
 type ArtifactKind = 'relic' | 'alien' | 'lore' | 'planet' | 'cache' | 'enemy'
 type WorkbenchView = 'upgrades' | 'manifest' | 'artifacts'
 type MothershipConsoleView = 'workbench' | 'manifest' | 'collection'
-type MothershipCollectionFilter = 'default' | 'found' | 'locked'
+type MothershipCollectionFilter = 'all' | 'found' | 'locked' | ArtifactKind
 interface Vec {
   x: number
   y: number
@@ -748,7 +748,7 @@ class VectorShooter {
   private workbenchView: WorkbenchView = 'upgrades'
   private workbenchRerolls = 0
   private mothershipConsoleView: MothershipConsoleView = 'workbench'
-  private mothershipCollectionFilter: MothershipCollectionFilter = 'default'
+  private mothershipCollectionFilter: MothershipCollectionFilter = 'all'
   private selectedCollectionId: string | null = null
   private planetChoice: Planet | null = null
   private alienChoice: SurfaceAlien | null = null
@@ -6078,20 +6078,25 @@ class VectorShooter {
 
     const controls = document.createElement('div')
     controls.className = 'collection-controls'
-    const sealed = document.createElement('div')
-    sealed.className = 'collection-control sealed'
-    sealed.innerHTML = '<span>Sealed:</span><b>0 / 5</b>'
-    const filter = document.createElement('button')
-    filter.type = 'button'
-    filter.className = 'collection-control filter'
-    filter.innerHTML = `<span>Filter:</span><b>${this.collectionFilterLabel()}</b>`
-    filter.addEventListener('click', () => {
-      this.mothershipCollectionFilter = this.nextCollectionFilter()
-      this.selectedCollectionId = null
-      const scrollTop = this.ui.title.querySelector<HTMLElement>('.mothership-command')?.scrollTop ?? 0
-      this.showMothership({ scrollTop })
-    })
-    controls.append(sealed, filter)
+    const foundPanel = document.createElement('div')
+    foundPanel.className = 'collection-control'
+    foundPanel.innerHTML = `<span>Collected:</span><b>${foundCount} / ${collectionCatalog.length}</b>`
+    const familyCounts = new Set(allRecords.filter((card) => !card.locked).map((card) => card.record.kind)).size
+    const familyPanel = document.createElement('div')
+    familyPanel.className = 'collection-control'
+    familyPanel.innerHTML = `<span>Families:</span><b>${familyCounts} / 6</b>`
+    const filterPanel = document.createElement('div')
+    filterPanel.className = 'collection-filter-panel'
+    filterPanel.append(this.collectionFilterButton('all'), this.collectionFilterButton('found'), this.collectionFilterButton('locked'))
+    filterPanel.append(
+      this.collectionFilterButton('relic'),
+      this.collectionFilterButton('enemy'),
+      this.collectionFilterButton('alien'),
+      this.collectionFilterButton('lore'),
+      this.collectionFilterButton('planet'),
+      this.collectionFilterButton('cache')
+    )
+    controls.append(foundPanel, familyPanel, filterPanel)
 
     const grid = document.createElement('div')
     grid.className = 'collection-icon-grid'
@@ -6119,6 +6124,7 @@ class VectorShooter {
       const meta = document.createElement('div')
       meta.className = 'collection-detail-meta'
       meta.innerHTML = `
+        <small>${this.collectionKindLabel(selected.record.kind)} / ${selected.locked ? 'LOCKED' : 'DISCOVERED'}</small>
         <b>${this.escape(selected.record.title)}${count}</b>
         <span>${this.escape(selected.record.detail)}</span>
         <em>${this.escape(selected.record.source)}</em>
@@ -6159,21 +6165,47 @@ class VectorShooter {
   private filteredCollectionCards(cards: Array<{ record: ArtifactRecord; locked: boolean }>) {
     if (this.mothershipCollectionFilter === 'found') return cards.filter((card) => !card.locked)
     if (this.mothershipCollectionFilter === 'locked') return cards.filter((card) => card.locked)
+    if (this.mothershipCollectionFilter !== 'all') return cards.filter((card) => card.record.kind === this.mothershipCollectionFilter)
     return cards
   }
 
-  private collectionFilterLabel() {
-    return {
-      default: 'DEFAULT',
-      found: 'FOUND',
-      locked: 'LOCKED'
-    }[this.mothershipCollectionFilter]
+  private collectionFilterButton(filter: MothershipCollectionFilter) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = `collection-filter-chip ${this.mothershipCollectionFilter === filter ? 'active' : ''}`
+    button.textContent = this.collectionFilterLabel(filter)
+    button.addEventListener('click', () => {
+      this.mothershipCollectionFilter = filter
+      this.selectedCollectionId = null
+      const scrollTop = this.ui.title.querySelector<HTMLElement>('.mothership-command')?.scrollTop ?? 0
+      this.showMothership({ scrollTop })
+    })
+    return button
   }
 
-  private nextCollectionFilter(): MothershipCollectionFilter {
-    if (this.mothershipCollectionFilter === 'default') return 'found'
-    if (this.mothershipCollectionFilter === 'found') return 'locked'
-    return 'default'
+  private collectionFilterLabel(filter: MothershipCollectionFilter = this.mothershipCollectionFilter) {
+    return {
+      all: 'ALL',
+      found: 'FOUND',
+      locked: 'LOCKED',
+      relic: 'RELICS',
+      enemy: 'ENEMIES',
+      alien: 'ALIENS',
+      lore: 'LORE',
+      planet: 'PLANETS',
+      cache: 'CACHES'
+    }[filter]
+  }
+
+  private collectionKindLabel(kind: ArtifactKind) {
+    return {
+      relic: 'RELIC',
+      enemy: 'ENEMY',
+      alien: 'ALIEN',
+      lore: 'LORE',
+      planet: 'PLANET',
+      cache: 'CACHE'
+    }[kind]
   }
 
   private collectionIcon(record: ArtifactRecord, locked = false) {
@@ -6183,12 +6215,16 @@ class VectorShooter {
       icon.textContent = '?'
       return icon
     }
-    const index = Math.abs(record.icon) % 16
-    const col = index % 4
-    const row = Math.floor(index / 4)
+    const iconCount = collectionIconAtlasColumns * collectionIconAtlasRows
+    const index = Math.floor(clamp(Math.abs(record.icon), 0, iconCount - 1))
+    const col = index % collectionIconAtlasColumns
+    const row = Math.floor(index / collectionIconAtlasColumns)
+    const x = collectionIconAtlasColumns <= 1 ? 0 : (col / (collectionIconAtlasColumns - 1)) * 100
+    const y = collectionIconAtlasRows <= 1 ? 0 : (row / (collectionIconAtlasRows - 1)) * 100
     icon.className = `collection-icon ${record.kind} ${locked ? 'locked' : ''}`
     icon.style.backgroundImage = `url("${collectionIconAtlasUrl}")`
-    icon.style.backgroundPosition = `${col * 33.333333}% ${row * 33.333333}%`
+    icon.style.backgroundSize = `${collectionIconAtlasColumns * 100}% ${collectionIconAtlasRows * 100}%`
+    icon.style.backgroundPosition = `${x}% ${y}%`
     return icon
   }
 
