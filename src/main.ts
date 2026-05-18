@@ -8,6 +8,7 @@ import { orderArtifactArchiveCards } from './artifact-archive'
 import { navigationCruiseScalar, navigationTrailProfile } from './navigation-cruise'
 import { ONBOARDING_PLANET_COUNT, onboardingPlanetSlot, useOnboardingPlanetField } from './onboarding-planets'
 import { pickupMagnetRange, pickupMagnetStrength } from './pickup-magnet'
+import { planetRadius } from './planet-sizing'
 import { pressurePackSize, shouldRecycleEnemy } from './spawn-pressure'
 import { planSurfaceEncounter, rollPlanetArchetype, type PlanetArchetype, type SurfaceEventKind, type SurfaceScenarioKind } from './surface-encounters'
 import { surfaceThreatSpawnPoint } from './surface-spawn'
@@ -1287,7 +1288,7 @@ class VectorShooter {
     const margin = 420
     const onboardingField = useOnboardingPlanetField(chunkX, chunkY, this.visitedPlanets.size)
     const centerBias = chunkX === 0 && chunkY === 0 && index === 0
-    const radius = 92 + rng() * 80
+    const radius = planetRadius(rng)
     const onboardingSlot = onboardingField ? onboardingPlanetSlot(index) : null
     let x = onboardingSlot ? onboardingSlot.x : centerBias ? 720 : chunkX * CHUNK_SIZE + margin + rng() * (CHUNK_SIZE - margin * 2)
     let y = onboardingSlot ? onboardingSlot.y : centerBias ? 220 : chunkY * CHUNK_SIZE + margin + rng() * (CHUNK_SIZE - margin * 2)
