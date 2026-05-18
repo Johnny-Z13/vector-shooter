@@ -13,8 +13,8 @@ export interface ReturnBeaconAutopilotInput {
   radius: number
 }
 
-export const FIRST_BEACON_TIME = 300
-export const BEACON_INTERVAL = 240
+export const FIRST_BEACON_TIME = 240
+export const BEACON_INTERVAL = 210
 export const BEACON_HOLD_SECONDS = 3.2
 
 export const returnBeaconEligible = (input: ReturnBeaconEligibilityInput) => {
@@ -32,7 +32,7 @@ export const beaconExtractionBonus = (skippedBeacons: number) => (
 )
 
 export const beaconSpawnDistance = (skippedBeacons: number) => (
-  760 + Math.min(420, Math.max(0, skippedBeacons) * 110)
+  640 + Math.min(360, Math.max(0, skippedBeacons) * 90)
 )
 
 export const returnBeaconAutopilotVector = ({ dx, dy, vx, vy, radius }: ReturnBeaconAutopilotInput) => {

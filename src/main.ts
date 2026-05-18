@@ -11,6 +11,12 @@ import { ONBOARDING_PLANET_COUNT, onboardingPlanetSlot, useOnboardingPlanetField
 import { pickupMagnetRange, pickupMagnetStrength } from './pickup-magnet'
 import { planetRadius } from './planet-sizing'
 import { pressurePackSize, shouldRecycleEnemy } from './spawn-pressure'
+import {
+  cameraTargetFor,
+  screenToWorld as spaceScreenToWorld,
+  spaceViewportScale,
+  worldToScreen as spaceWorldToScreen
+} from './space-camera'
 import { isSpriteEnemyKind, spaceEnemyDefinitions, spaceEnemySpawnPoint, type SpaceEnemyKind } from './space-enemies'
 import { planSurfaceEncounter, rollPlanetArchetype, type PlanetArchetype, type SurfaceEventKind, type SurfaceScenarioKind } from './surface-encounters'
 import { surfaceThreatSpawnPoint } from './surface-spawn'
@@ -42,7 +48,7 @@ type EnemyKind = SpaceEnemyKind
 type SurfaceResourceKind = 'crystal' | 'scrap' | 'repair' | 'cache'
 type GraphicsMode = 'LOW' | 'MED' | 'GLOW'
 type UpgradeCategory = 'weapon' | 'system'
-type UpgradeBucket = 'weapons' | 'navigation' | 'survival' | 'economy' | 'planetcraft' | 'control'
+type UpgradeBucket = 'weapons' | 'navigation' | 'survival' | 'economy' | 'planetcraft' | 'spacesuit' | 'control'
 type RelicId = 'staticIdol' | 'glassReactor' | 'deadSunCoin' | 'hungryCompass' | 'blackBoxSaint' | 'mirrorSeed' | 'saintCapacitor' | 'forbiddenMap'
 type LimitId = 'might' | 'cooldown' | 'amount' | 'speed' | 'magnet' | 'hull'
 type AlienGiftKind = 'herb' | 'idol' | 'map' | 'coin'
@@ -324,6 +330,9 @@ interface ReturnBeacon {
   radius: number
   hold: number
   phase: number
+  age: number
+  reminded: boolean
+  assistTriggered: boolean
 }
 
 type WorkbenchChoice =
@@ -593,7 +602,7 @@ const upgrades: Upgrade[] = [
     id: 'suitO2',
     name: 'Exo-Lung',
     category: 'system',
-    bucket: 'planetcraft',
+    bucket: 'spacesuit',
     description: 'The surface timer bucket: longer oxygen reserves for planet runs.',
     max: 5,
     rarity: 64,
@@ -603,7 +612,7 @@ const upgrades: Upgrade[] = [
     id: 'suitHealth',
     name: 'Skinweave Suit',
     category: 'system',
-    bucket: 'survival',
+    bucket: 'spacesuit',
     description: 'The human survival bucket: more surface health and better field repairs.',
     max: 4,
     rarity: 66,
@@ -613,7 +622,7 @@ const upgrades: Upgrade[] = [
     id: 'suitBlaster',
     name: 'Field Blaster',
     category: 'weapon',
-    bucket: 'planetcraft',
+    bucket: 'spacesuit',
     description: 'The human weapon bucket: surface pistol shots hit harder and cycle faster.',
     max: 5,
     rarity: 58,
@@ -829,6 +838,7 @@ class AudioDirector {
       survival: 390,
       economy: 760,
       planetcraft: 470,
+      spacesuit: 580,
       control: 610,
       evolution: 300,
       relic: 260,
@@ -1737,8 +1747,23 @@ class VectorShooter {
     }
     if (!this.returnBeacon) return
     this.returnBeacon.phase += dt
+    this.returnBeacon.age += dt
     const distance = Math.sqrt(dist2(this.returnBeacon, this.player))
-    if (distance > 1700) {
+    if (this.returnBeacon.age > 22 && !this.returnBeacon.reminded) {
+      this.returnBeacon.reminded = true
+      this.toast('RETURN BEACON WAITING - TAP BEACON TO LOCK')
+      this.audio.pickup('nav')
+    }
+    if (this.returnBeacon.age > 48 && !this.returnBeacon.assistTriggered && !this.autoNavTargetBeacon) {
+      this.returnBeacon.assistTriggered = true
+      this.autoNavTargetPlanetId = null
+      this.autoNavTargetBeacon = true
+      this.autoNavActive = true
+      this.autoNavHeading = Math.atan2(this.returnBeacon.y - this.player.y, this.returnBeacon.x - this.player.x)
+      this.toast('RECALL ROUTE SET - NUDGE AWAY TO SKIP')
+      this.audio.pickup('nav')
+    }
+    if (distance > 2400) {
       this.skipReturnBeacon()
       return
     }
@@ -1761,9 +1786,12 @@ class VectorShooter {
       y: this.player.y + Math.sin(angle) * distance,
       radius: 96,
       hold: 0,
-      phase: 0
+      phase: 0,
+      age: 0,
+      reminded: false,
+      assistTriggered: false
     }
-    this.toast('RETURN BEACON DETECTED - USE TO LOCK')
+    this.toast('RETURN BEACON AVAILABLE - TAP BEACON TO LOCK')
     this.audio.pickup('nav')
   }
 
@@ -1853,8 +1881,9 @@ class VectorShooter {
     this.player.y = this.orbitReturnPoint.y
     this.player.vx = 0
     this.player.vy = 0
-    this.camera.x = this.player.x - this.width / 2
-    this.camera.y = this.player.y - this.height / 2
+    const target = cameraTargetFor(this.player, this.width, this.height, this.spaceScale())
+    this.camera.x = target.x
+    this.camera.y = target.y
     this.updateSpaceChunks(true)
   }
 
@@ -2951,6 +2980,7 @@ class VectorShooter {
       survival: '#8fff7d',
       economy: '#fff27a',
       planetcraft: '#fff27a',
+      spacesuit: '#70a8ff',
       control: '#b990ff'
     }[upgrade.bucket] ?? '#8fff7d'
   }
@@ -3898,11 +3928,16 @@ class VectorShooter {
   }
 
   private updateCamera(dt: number) {
-    const targetX = this.player.x - this.width / 2
-    const targetY = this.player.y - this.height / 2
+    const target = cameraTargetFor(this.player, this.width, this.height, this.spaceScale())
+    const targetX = target.x
+    const targetY = target.y
     this.camera.x += (targetX - this.camera.x) * clamp(dt * 7, 0, 1)
     this.camera.y += (targetY - this.camera.y) * clamp(dt * 7, 0, 1)
     this.camera.shake = Math.max(0, this.camera.shake - dt * 35)
+  }
+
+  private spaceScale() {
+    return spaceViewportScale(this.width, this.height)
   }
 
   private burst(x: number, y: number, color: string, count: number, speed: number) {
@@ -3972,13 +4007,14 @@ class VectorShooter {
   }
 
   private screenToWorld(x: number, y: number): Vec {
-    return { x: x + this.camera.x, y: y + this.camera.y }
+    return spaceScreenToWorld({ x, y }, this.camera, this.spaceScale())
   }
 
   private worldToScreen(x: number, y: number): Vec {
     const shakeX = this.camera.shake > 0 ? rand(-this.camera.shake, this.camera.shake) : 0
     const shakeY = this.camera.shake > 0 ? rand(-this.camera.shake, this.camera.shake) : 0
-    return { x: x - this.camera.x + shakeX, y: y - this.camera.y + shakeY }
+    const p = spaceWorldToScreen({ x, y }, this.camera, this.spaceScale())
+    return { x: p.x + shakeX, y: p.y + shakeY }
   }
 
   private render() {
@@ -4653,17 +4689,20 @@ class VectorShooter {
     ctx.strokeStyle = 'rgba(87,255,243,0.08)'
     ctx.lineWidth = 1
     const grid = 240
+    const scale = this.spaceScale()
+    const viewRight = this.camera.x + this.width / scale
+    const viewBottom = this.camera.y + this.height / scale
     const startX = Math.floor(this.camera.x / grid) * grid
     const startY = Math.floor(this.camera.y / grid) * grid
-    for (let x = startX; x < this.camera.x + this.width + grid; x += grid) {
-      const sx = x - this.camera.x
+    for (let x = startX; x < viewRight + grid; x += grid) {
+      const sx = (x - this.camera.x) * scale
       ctx.beginPath()
       ctx.moveTo(sx, 0)
       ctx.lineTo(sx, this.height)
       ctx.stroke()
     }
-    for (let y = startY; y < this.camera.y + this.height + grid; y += grid) {
-      const sy = y - this.camera.y
+    for (let y = startY; y < viewBottom + grid; y += grid) {
+      const sy = (y - this.camera.y) * scale
       ctx.beginPath()
       ctx.moveTo(0, sy)
       ctx.lineTo(this.width, sy)
@@ -4674,15 +4713,15 @@ class VectorShooter {
     ctx.font = '11px Courier New'
     const chunkStartX = Math.floor(this.camera.x / CHUNK_SIZE) * CHUNK_SIZE
     const chunkStartY = Math.floor(this.camera.y / CHUNK_SIZE) * CHUNK_SIZE
-    for (let x = chunkStartX; x < this.camera.x + this.width + CHUNK_SIZE; x += CHUNK_SIZE) {
-      const sx = x - this.camera.x
+    for (let x = chunkStartX; x < viewRight + CHUNK_SIZE; x += CHUNK_SIZE) {
+      const sx = (x - this.camera.x) * scale
       ctx.beginPath()
       ctx.moveTo(sx, 0)
       ctx.lineTo(sx, this.height)
       ctx.stroke()
     }
-    for (let y = chunkStartY; y < this.camera.y + this.height + CHUNK_SIZE; y += CHUNK_SIZE) {
-      const sy = y - this.camera.y
+    for (let y = chunkStartY; y < viewBottom + CHUNK_SIZE; y += CHUNK_SIZE) {
+      const sy = (y - this.camera.y) * scale
       ctx.beginPath()
       ctx.moveTo(0, sy)
       ctx.lineTo(this.width, sy)
@@ -4713,10 +4752,13 @@ class VectorShooter {
       [255, 93, 115]
     ]
     const landmarkGrid = 820
+    const scale = this.spaceScale()
+    const viewRight = this.camera.x + this.width / scale
+    const viewBottom = this.camera.y + this.height / scale
     const minX = Math.floor((this.camera.x - landmarkGrid) / landmarkGrid)
-    const maxX = Math.floor((this.camera.x + this.width + landmarkGrid) / landmarkGrid)
+    const maxX = Math.floor((viewRight + landmarkGrid) / landmarkGrid)
     const minY = Math.floor((this.camera.y - landmarkGrid) / landmarkGrid)
-    const maxY = Math.floor((this.camera.y + this.height + landmarkGrid) / landmarkGrid)
+    const maxY = Math.floor((viewBottom + landmarkGrid) / landmarkGrid)
     const glow = this.allowGlow()
     ctx.save()
     ctx.globalCompositeOperation = glow ? 'screen' : 'source-over'
@@ -4733,8 +4775,9 @@ class VectorShooter {
         for (let i = 0; i < landmarkCount; i += 1) {
           const worldX = gx * landmarkGrid + rng() * landmarkGrid
           const worldY = gy * landmarkGrid + rng() * landmarkGrid
-          const x = worldX - this.camera.x
-          const y = worldY - this.camera.y
+          const p = this.worldToScreen(worldX, worldY)
+          const x = p.x
+          const y = p.y
           const kind = Math.floor(rng() * 4)
           ctx.save()
           ctx.translate(x, y)
@@ -4801,10 +4844,13 @@ class VectorShooter {
       [112, 168, 255],
       [255, 93, 115]
     ]
+    const scale = this.spaceScale()
+    const viewRight = this.camera.x + this.width / scale
+    const viewBottom = this.camera.y + this.height / scale
     const minX = Math.floor((this.camera.x - CHUNK_SIZE) / CHUNK_SIZE)
-    const maxX = Math.floor((this.camera.x + this.width + CHUNK_SIZE) / CHUNK_SIZE)
+    const maxX = Math.floor((viewRight + CHUNK_SIZE) / CHUNK_SIZE)
     const minY = Math.floor((this.camera.y - CHUNK_SIZE) / CHUNK_SIZE)
-    const maxY = Math.floor((this.camera.y + this.height + CHUNK_SIZE) / CHUNK_SIZE)
+    const maxY = Math.floor((viewBottom + CHUNK_SIZE) / CHUNK_SIZE)
     const glow = this.allowGlow()
     ctx.save()
     ctx.globalCompositeOperation = glow ? 'screen' : 'source-over'
@@ -4816,8 +4862,9 @@ class VectorShooter {
         const accent = colors[Math.floor(rng() * colors.length)]
         const worldX = cx * CHUNK_SIZE + rng() * CHUNK_SIZE
         const worldY = cy * CHUNK_SIZE + rng() * CHUNK_SIZE
-        const x = worldX - this.camera.x
-        const y = worldY - this.camera.y
+        const p = this.worldToScreen(worldX, worldY)
+        const x = p.x
+        const y = p.y
         const length = CHUNK_SIZE * (0.8 + rng() * 0.75)
         const breadth = 150 + rng() * 260
         const angle = rng() * TAU
@@ -4844,8 +4891,10 @@ class VectorShooter {
   }
 
   private renderPlanets(ctx: CanvasRenderingContext2D) {
+    const scale = this.spaceScale()
     for (const p of this.planets) {
       const s = this.worldToScreen(p.x, p.y)
+      const radius = p.radius * scale
       if (s.x < -260 || s.x > this.width + 260 || s.y < -260 || s.y > this.height + 260) continue
       ctx.save()
       ctx.strokeStyle = p.color
@@ -4853,23 +4902,23 @@ class VectorShooter {
       ctx.shadowBlur = 18
       ctx.lineWidth = 2
       ctx.beginPath()
-      ctx.arc(s.x, s.y, p.radius, 0, TAU)
+      ctx.arc(s.x, s.y, radius, 0, TAU)
       ctx.stroke()
       ctx.shadowBlur = 0
       ctx.globalAlpha = 0.38
       ctx.beginPath()
-      ctx.ellipse(s.x, s.y, p.radius * 1.75, p.radius * 0.38, Math.sin(this.stats.time * 0.3) * 0.35, 0, TAU)
+      ctx.ellipse(s.x, s.y, radius * 1.75, radius * 0.38, Math.sin(this.stats.time * 0.3) * 0.35, 0, TAU)
       ctx.stroke()
       ctx.globalAlpha = 1
       for (let i = 0; i < 4; i += 1) {
         ctx.beginPath()
-        ctx.arc(s.x, s.y, p.radius * (0.35 + i * 0.15), 0, TAU * (0.56 + Math.sin(this.stats.time + i) * 0.08))
+        ctx.arc(s.x, s.y, radius * (0.35 + i * 0.15), 0, TAU * (0.56 + Math.sin(this.stats.time + i) * 0.08))
         ctx.stroke()
       }
       ctx.fillStyle = p.visited ? '#8fff7d' : '#d7fff7'
       ctx.font = '12px Courier New'
       ctx.textAlign = 'center'
-      ctx.fillText(p.name, s.x, s.y + p.radius + 24)
+      ctx.fillText(p.name, s.x, s.y + radius + 24 * scale)
       ctx.restore()
     }
   }
@@ -4916,23 +4965,24 @@ class VectorShooter {
       return
     }
     const pulse = Math.sin(this.returnBeacon.phase * 4) * 0.5 + 0.5
+    const radius = this.returnBeacon.radius * this.spaceScale()
     ctx.save()
     ctx.strokeStyle = '#fff27a'
     ctx.shadowColor = '#fff27a'
     ctx.shadowBlur = this.allowGlow() ? 24 : 8
     ctx.lineWidth = 2 + pulse
     ctx.beginPath()
-    ctx.arc(p.x, p.y, this.returnBeacon.radius, 0, TAU)
+    ctx.arc(p.x, p.y, radius, 0, TAU)
     ctx.stroke()
     ctx.strokeStyle = '#57fff3'
     ctx.beginPath()
-    ctx.arc(p.x, p.y, this.returnBeacon.radius * clamp(this.returnBeacon.hold / BEACON_HOLD_SECONDS, 0, 1), 0, TAU)
+    ctx.arc(p.x, p.y, radius * clamp(this.returnBeacon.hold / BEACON_HOLD_SECONDS, 0, 1), 0, TAU)
     ctx.stroke()
     ctx.shadowBlur = 0
     ctx.fillStyle = '#fff27a'
     ctx.font = '12px Courier New'
     ctx.textAlign = 'center'
-    ctx.fillText(`RETURN BEACON ${distance}`, p.x, p.y - this.returnBeacon.radius - 12)
+    ctx.fillText(`RETURN BEACON ${distance}`, p.x, p.y - radius - 12)
     ctx.restore()
   }
 
@@ -4942,6 +4992,7 @@ class VectorShooter {
     const target = this.autoNavTargetPlanetId ? this.planets.find((planet) => planet.id === this.autoNavTargetPlanetId) : null
     const beaconTarget = this.autoNavTargetBeacon ? this.returnBeacon : null
     const level = this.navigationCruiseLevel()
+    const scale = this.spaceScale()
     const color = beaconTarget ? '#fff27a' : this.build.nav <= 0 ? '#57fff3' : this.build.nav >= 6 ? '#fff27a' : '#70a8ff'
     ctx.save()
     ctx.strokeStyle = color
@@ -4959,7 +5010,7 @@ class VectorShooter {
       ctx.setLineDash([])
       ctx.globalAlpha = 0.78
       ctx.beginPath()
-      ctx.arc(t.x, t.y, target.radius + 16 + Math.sin(this.stats.time * 5) * 3, 0, TAU)
+      ctx.arc(t.x, t.y, target.radius * scale + 16 * scale + Math.sin(this.stats.time * 5) * 3 * scale, 0, TAU)
       ctx.stroke()
     } else if (beaconTarget) {
       const t = this.worldToScreen(beaconTarget.x, beaconTarget.y)
@@ -4968,10 +5019,10 @@ class VectorShooter {
       ctx.setLineDash([])
       ctx.globalAlpha = 0.78
       ctx.beginPath()
-      ctx.arc(t.x, t.y, beaconTarget.radius + 12 + Math.sin(this.stats.time * 5) * 4, 0, TAU)
+      ctx.arc(t.x, t.y, beaconTarget.radius * scale + 12 * scale + Math.sin(this.stats.time * 5) * 4 * scale, 0, TAU)
       ctx.stroke()
     } else {
-      const length = 62 + level * 13
+      const length = (62 + level * 13) * scale
       ctx.lineTo(p.x + Math.cos(this.autoNavHeading) * length, p.y + Math.sin(this.autoNavHeading) * length)
       ctx.stroke()
     }
@@ -4980,6 +5031,7 @@ class VectorShooter {
 
   private renderPlayer(ctx: CanvasRenderingContext2D) {
     const p = this.worldToScreen(this.player.x, this.player.y)
+    const scale = this.spaceScale()
     const a = this.player.angle
     const engineGlow = this.build.engine + this.build.heat + this.limitBreaks.speed * 0.2
     const weaponGlow = this.build.rapid + this.build.split + this.build.rail + this.build.rift
@@ -4993,6 +5045,7 @@ class VectorShooter {
     ctx.save()
     ctx.translate(p.x, p.y)
     ctx.rotate(a)
+    ctx.scale(scale, scale)
     if (travelSpeed > 22) {
       ctx.save()
       ctx.globalCompositeOperation = this.allowGlow() ? 'lighter' : 'source-over'
@@ -5079,7 +5132,7 @@ class VectorShooter {
       ctx.strokeStyle = `rgba(112,168,255,${0.25 + this.player.shield / this.player.maxShield * 0.42})`
       ctx.lineWidth = 2
       ctx.beginPath()
-      ctx.arc(p.x, p.y, this.player.radius + 10, 0, TAU)
+      ctx.arc(p.x, p.y, (this.player.radius + 10) * scale, 0, TAU)
       ctx.stroke()
       ctx.restore()
     }
@@ -5089,7 +5142,7 @@ class VectorShooter {
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(p.x, p.y)
-    ctx.lineTo(p.x + Math.cos(this.player.aimAngle) * 58, p.y + Math.sin(this.player.aimAngle) * 58)
+    ctx.lineTo(p.x + Math.cos(this.player.aimAngle) * 58 * scale, p.y + Math.sin(this.player.aimAngle) * 58 * scale)
     ctx.stroke()
     ctx.restore()
   }
@@ -5099,6 +5152,7 @@ class VectorShooter {
       this.renderBulletsSimple(ctx)
       return
     }
+    const scale = this.spaceScale()
     for (const b of this.bullets) {
       const p = this.worldToScreen(b.x, b.y)
       if (p.x < -80 || p.x > this.width + 80 || p.y < -80 || p.y > this.height + 80) continue
@@ -5109,13 +5163,14 @@ class VectorShooter {
       ctx.lineWidth = b.rail ? 3 : 2
       ctx.beginPath()
       if (b.mine) {
-        ctx.arc(p.x, p.y, b.radius, 0, TAU)
-        ctx.moveTo(p.x - b.radius, p.y)
-        ctx.lineTo(p.x + b.radius, p.y)
+        const radius = b.radius * scale
+        ctx.arc(p.x, p.y, radius, 0, TAU)
+        ctx.moveTo(p.x - radius, p.y)
+        ctx.lineTo(p.x + radius, p.y)
       } else {
         const tail = norm(b.vx, b.vy)
-        ctx.moveTo(p.x - tail.x * (b.rail ? 26 : 12), p.y - tail.y * (b.rail ? 26 : 12))
-        ctx.lineTo(p.x + tail.x * (b.rail ? 16 : 7), p.y + tail.y * (b.rail ? 16 : 7))
+        ctx.moveTo(p.x - tail.x * (b.rail ? 26 : 12) * scale, p.y - tail.y * (b.rail ? 26 : 12) * scale)
+        ctx.lineTo(p.x + tail.x * (b.rail ? 16 : 7) * scale, p.y + tail.y * (b.rail ? 16 : 7) * scale)
       }
       ctx.stroke()
       ctx.restore()
@@ -5123,22 +5178,20 @@ class VectorShooter {
   }
 
   private renderBulletsSimple(ctx: CanvasRenderingContext2D) {
-    const camX = this.camera.x
-    const camY = this.camera.y
+    const scale = this.spaceScale()
     ctx.save()
     ctx.shadowBlur = 0
     ctx.lineWidth = 2
     ctx.strokeStyle = 'rgba(215,255,247,0.82)'
     ctx.beginPath()
     for (const b of this.bullets) {
-      const x = b.x - camX
-      const y = b.y - camY
+      const { x, y } = this.worldToScreen(b.x, b.y)
       if (x < -80 || x > this.width + 80 || y < -80 || y > this.height + 80) continue
       const mag = Math.hypot(b.vx, b.vy) || 1
       const tx = b.vx / mag
       const ty = b.vy / mag
-      const rear = b.rail ? 24 : 11
-      const nose = b.rail ? 15 : 7
+      const rear = (b.rail ? 24 : 11) * scale
+      const nose = (b.rail ? 15 : 7) * scale
       ctx.moveTo(x - tx * rear, y - ty * rear)
       ctx.lineTo(x + tx * nose, y + ty * nose)
     }
@@ -5148,14 +5201,13 @@ class VectorShooter {
     ctx.beginPath()
     for (const b of this.bullets) {
       if (!b.rail) continue
-      const x = b.x - camX
-      const y = b.y - camY
+      const { x, y } = this.worldToScreen(b.x, b.y)
       if (x < -80 || x > this.width + 80 || y < -80 || y > this.height + 80) continue
       const mag = Math.hypot(b.vx, b.vy) || 1
       const tx = b.vx / mag
       const ty = b.vy / mag
-      ctx.moveTo(x - tx * 28, y - ty * 28)
-      ctx.lineTo(x + tx * 18, y + ty * 18)
+      ctx.moveTo(x - tx * 28 * scale, y - ty * 28 * scale)
+      ctx.lineTo(x + tx * 18 * scale, y + ty * 18 * scale)
     }
     ctx.stroke()
     ctx.restore()
@@ -5177,6 +5229,7 @@ class VectorShooter {
       ctx.save()
       ctx.translate(p.x, p.y)
       ctx.rotate(e.phase)
+      ctx.scale(this.spaceScale(), this.spaceScale())
       ctx.strokeStyle = e.flash > 0 ? '#ffffff' : e.color
       ctx.shadowColor = e.color
       ctx.shadowBlur = this.allowGlow() ? 12 : 0
@@ -5267,9 +5320,9 @@ class VectorShooter {
       : speed > 8
         ? Math.atan2(e.vy, e.vx)
         : Math.atan2(this.player.y - e.y, this.player.x - e.x)
-    const scale = e.kind === 'bulwark' ? 4.55 : e.kind === 'skimmer' ? 5.35 : 5.85
-    const dw = e.radius * scale
-    const dh = e.radius * scale
+    const spriteScale = (e.kind === 'bulwark' ? 4.55 : e.kind === 'skimmer' ? 5.35 : 5.85) * this.spaceScale()
+    const dw = e.radius * spriteScale
+    const dh = e.radius * spriteScale
 
     ctx.save()
     ctx.translate(p.x, p.y)
@@ -5283,36 +5336,33 @@ class VectorShooter {
       ctx.strokeStyle = '#ffffff'
       ctx.lineWidth = 2
       ctx.beginPath()
-      ctx.arc(0, 0, e.radius * 1.35, 0, TAU)
+      ctx.arc(0, 0, e.radius * 1.35 * this.spaceScale(), 0, TAU)
       ctx.stroke()
     }
     ctx.restore()
   }
 
   private renderHordeEnemies(ctx: CanvasRenderingContext2D) {
-    const camX = this.camera.x
-    const camY = this.camera.y
     ctx.save()
     ctx.shadowBlur = 0
     ctx.lineWidth = 1.45
-    this.strokeEnemyBatch(ctx, camX, camY, 'chaser', '#8fff7d')
-    this.strokeEnemyBatch(ctx, camX, camY, 'splinter', '#70a8ff')
-    this.strokeEnemyBatch(ctx, camX, camY, 'lancer', '#fff27a')
-    this.strokeEnemyBatch(ctx, camX, camY, 'mine', '#ff5d73')
-    this.strokeEnemyBatch(ctx, camX, camY, 'shooter', '#ff61d8')
-    this.strokeEnemyBatch(ctx, camX, camY, 'razor', '#57fff3')
-    this.strokeEnemyBatch(ctx, camX, camY, 'skimmer', '#ffe66d')
+    this.strokeEnemyBatch(ctx, 'chaser', '#8fff7d')
+    this.strokeEnemyBatch(ctx, 'splinter', '#70a8ff')
+    this.strokeEnemyBatch(ctx, 'lancer', '#fff27a')
+    this.strokeEnemyBatch(ctx, 'mine', '#ff5d73')
+    this.strokeEnemyBatch(ctx, 'shooter', '#ff61d8')
+    this.strokeEnemyBatch(ctx, 'razor', '#57fff3')
+    this.strokeEnemyBatch(ctx, 'skimmer', '#ffe66d')
     ctx.lineWidth = 2.4
-    this.strokeEnemyBatch(ctx, camX, camY, 'brute', '#ff9d5c')
-    this.strokeEnemyBatch(ctx, camX, camY, 'bulwark', '#f46cff')
-    this.strokeEnemyBatch(ctx, camX, camY, 'warden', '#b990ff')
+    this.strokeEnemyBatch(ctx, 'brute', '#ff9d5c')
+    this.strokeEnemyBatch(ctx, 'bulwark', '#f46cff')
+    this.strokeEnemyBatch(ctx, 'warden', '#b990ff')
     ctx.lineWidth = 1.8
     ctx.strokeStyle = '#ffffff'
     ctx.beginPath()
     for (const e of this.enemies) {
       if (e.flash <= 0) continue
-      const x = e.x - camX
-      const y = e.y - camY
+      const { x, y } = this.worldToScreen(e.x, e.y)
       if (x < -95 || x > this.width + 95 || y < -95 || y > this.height + 95) continue
       this.addEnemyGlyph(ctx, e, x, y)
     }
@@ -5320,13 +5370,12 @@ class VectorShooter {
     ctx.restore()
   }
 
-  private strokeEnemyBatch(ctx: CanvasRenderingContext2D, camX: number, camY: number, kind: EnemyKind, color: string) {
+  private strokeEnemyBatch(ctx: CanvasRenderingContext2D, kind: EnemyKind, color: string) {
     ctx.strokeStyle = color
     ctx.beginPath()
     for (const e of this.enemies) {
       if (e.kind !== kind || e.flash > 0) continue
-      const x = e.x - camX
-      const y = e.y - camY
+      const { x, y } = this.worldToScreen(e.x, e.y)
       if (x < -95 || x > this.width + 95 || y < -95 || y > this.height + 95) continue
       this.addEnemyGlyph(ctx, e, x, y)
     }
@@ -5334,7 +5383,7 @@ class VectorShooter {
   }
 
   private addEnemyGlyph(ctx: CanvasRenderingContext2D, e: Enemy, x: number, y: number) {
-    const r = e.radius
+    const r = e.radius * this.spaceScale()
     if (e.kind === 'lancer') {
       const dx = this.player.x - e.x
       const dy = this.player.y - e.y
@@ -5417,6 +5466,7 @@ class VectorShooter {
     ctx.save()
     ctx.translate(p.x, p.y)
     ctx.rotate(e.phase)
+    ctx.scale(this.spaceScale(), this.spaceScale())
     ctx.strokeStyle = e.flash > 0 ? '#ffffff' : e.color
     ctx.lineWidth = 1.5
     const r = e.radius
@@ -5473,6 +5523,7 @@ class VectorShooter {
 
   private renderPickups(ctx: CanvasRenderingContext2D) {
     const highLoad = this.isHighLoad()
+    const scale = this.spaceScale()
     for (const p of this.pickups) {
       const s = this.worldToScreen(p.x, p.y)
       if (s.x < -60 || s.x > this.width + 60 || s.y < -60 || s.y > this.height + 60) continue
@@ -5484,7 +5535,7 @@ class VectorShooter {
       ctx.shadowBlur = highLoad ? 0 : this.allowGlow() ? 18 : 10
       ctx.lineWidth = 2
       const pulse = 1 + Math.sin(this.stats.time * 5 + p.value) * 0.08
-      const r = p.radius * pulse
+      const r = p.radius * pulse * scale
       ctx.globalAlpha = 0.28
       ctx.beginPath()
       ctx.arc(0, 0, r + 8, 0, TAU)
@@ -5538,6 +5589,7 @@ class VectorShooter {
       this.renderParticlesSimple(ctx)
       return
     }
+    const surfaceMode = this.surface && (this.state === 'surface' || this.state === 'takeoff' || (this.state === 'landing' && this.transitionTimer / this.transitionDuration > 0.58))
     ctx.save()
     ctx.globalCompositeOperation = this.allowGlow() ? 'lighter' : 'source-over'
     const visibleBudget = highLoad ? 160 : MAX_PARTICLES
@@ -5554,6 +5606,7 @@ class VectorShooter {
       ctx.lineWidth = p.sides ? 1.5 : clamp(p.size, 1, 3)
       ctx.translate(s.x, s.y)
       ctx.rotate(p.angle ?? 0)
+      if (!surfaceMode) ctx.scale(this.spaceScale(), this.spaceScale())
       ctx.beginPath()
       if (p.sides && p.sides > 2) {
         for (let i = 0; i < p.sides; i += 1) {
@@ -5588,12 +5641,13 @@ class VectorShooter {
     ctx.beginPath()
     let drawn = 0
     for (const p of this.particles) {
-      const x = p.x - camX
-      const y = p.y - camY
+      const screen = surfaceMode ? { x: p.x - camX, y: p.y - camY } : this.worldToScreen(p.x, p.y)
+      const x = screen.x
+      const y = screen.y
       if (x < -80 || x > this.width + 80 || y < -80 || y > this.height + 80) continue
       if (drawn++ > 140) break
       const alpha = clamp(p.life / p.maxLife, 0, 1)
-      const length = Math.max(3, (p.length ?? Math.hypot(p.vx, p.vy) * 0.035) * alpha)
+      const length = Math.max(3, (p.length ?? Math.hypot(p.vx, p.vy) * 0.035) * alpha * (surfaceMode ? 1 : this.spaceScale()))
       const mag = Math.hypot(p.vx, p.vy) || 1
       ctx.moveTo(x, y)
       ctx.lineTo(x - (p.vx / mag) * length, y - (p.vy / mag) * length)
@@ -5609,7 +5663,8 @@ class VectorShooter {
     const glow = this.allowGlow()
     for (const w of this.shockwaves) {
       const s = this.effectToScreen(w.x, w.y)
-      if (s.x + w.radius < -120 || s.x - w.radius > this.width + 120 || s.y + w.radius < -120 || s.y - w.radius > this.height + 120) continue
+      const radius = w.radius * (this.surface && (this.state === 'surface' || this.state === 'takeoff' || (this.state === 'landing' && this.transitionTimer / this.transitionDuration > 0.58)) ? 1 : this.spaceScale())
+      if (s.x + radius < -120 || s.x - radius > this.width + 120 || s.y + radius < -120 || s.y - radius > this.height + 120) continue
       const alpha = clamp(w.life / w.maxLife, 0, 1)
       const points = highLoad ? 10 : glow ? 28 : 18
       ctx.save()
@@ -5622,7 +5677,7 @@ class VectorShooter {
       for (let i = 0; i <= points; i += 1) {
         const a = (i / points) * TAU
         const wobble = Math.sin(a * 5 + w.jag) * 0.12 + Math.sin(a * 9 - w.jag) * 0.06
-        const r = w.radius * (1 + wobble)
+        const r = radius * (1 + wobble)
         const x = s.x + Math.cos(a) * r
         const y = s.y + Math.sin(a) * r
         if (i === 0) ctx.moveTo(x, y)
@@ -5638,8 +5693,8 @@ class VectorShooter {
         ctx.beginPath()
         for (let i = 0; i < 10; i += 1) {
           const a = (i / 10) * TAU + w.jag
-          ctx.moveTo(s.x + Math.cos(a) * w.radius * 0.18, s.y + Math.sin(a) * w.radius * 0.18)
-          ctx.lineTo(s.x + Math.cos(a) * w.radius * 0.96, s.y + Math.sin(a) * w.radius * 0.96)
+          ctx.moveTo(s.x + Math.cos(a) * radius * 0.18, s.y + Math.sin(a) * radius * 0.18)
+          ctx.lineTo(s.x + Math.cos(a) * radius * 0.96, s.y + Math.sin(a) * radius * 0.96)
         }
         ctx.stroke()
       }
@@ -5652,7 +5707,8 @@ class VectorShooter {
     const count = this.build.orbit
     if (count <= 0) return
     const center = this.worldToScreen(this.player.x, this.player.y)
-    const radius = 66 + count * 8
+    const scale = this.spaceScale()
+    const radius = (66 + count * 8) * scale
     const glow = this.allowGlow()
     ctx.save()
     ctx.globalCompositeOperation = glow ? 'lighter' : 'source-over'
@@ -5664,8 +5720,8 @@ class VectorShooter {
       const x = center.x + Math.cos(a) * radius
       const y = center.y + Math.sin(a) * radius
       ctx.beginPath()
-      ctx.moveTo(x - Math.cos(a) * 12, y - Math.sin(a) * 12)
-      ctx.lineTo(x + Math.cos(a) * 12, y + Math.sin(a) * 12)
+      ctx.moveTo(x - Math.cos(a) * 12 * scale, y - Math.sin(a) * 12 * scale)
+      ctx.lineTo(x + Math.cos(a) * 12 * scale, y + Math.sin(a) * 12 * scale)
       ctx.stroke()
       if (glow) {
         ctx.globalAlpha = 0.28
@@ -5739,8 +5795,8 @@ class VectorShooter {
     this.ui.time.textContent = formatTime(this.stats.time)
     this.ui.wave.textContent = this.stats.kills.toString()
     this.ui.high.textContent = Math.max(this.stats.highScore, this.stats.score).toString()
-    const beaconText = this.returnBeacon && this.mothership.departments.scanner >= 2
-      ? ` // BEACON ${Math.floor(Math.sqrt(dist2(this.returnBeacon, this.player)))}`
+    const beaconText = this.returnBeacon
+      ? ` // RETURN BEACON ${Math.floor(Math.sqrt(dist2(this.returnBeacon, this.player)))}`
       : ''
     this.ui.resources.textContent = `Scrap ${this.resources.scrap}  Crystals ${this.resources.crystal}  Cores ${this.resources.cores}${beaconText}`
     if (this.state === 'surface' && this.surface) {
@@ -6097,7 +6153,8 @@ class VectorShooter {
     if (choice.kind === 'upgrade') {
       const level = this.build[choice.upgrade.id] + 1
       const detail = choice.upgrade.levels[level - 1] ?? choice.upgrade.description
-      const tag = `${this.bucketLabel(choice.upgrade.bucket)} // ${choice.upgrade.category === 'weapon' ? 'WEAPON' : 'SHIP'}`
+      const systemLabel = choice.upgrade.bucket === 'spacesuit' ? 'SUIT' : choice.upgrade.category === 'weapon' ? 'WEAPON' : 'SHIP'
+      const tag = `${this.bucketLabel(choice.upgrade.bucket)} // ${systemLabel}`
       return `<strong>${this.escape(choice.upgrade.name)} ${level}/${choice.upgrade.max}</strong><em>${tag}</em><span>${this.escape(detail)}</span>`
     }
     if (choice.kind === 'evolution') {
@@ -6117,6 +6174,7 @@ class VectorShooter {
       survival: 'SURVIVAL',
       economy: 'ECONOMY',
       planetcraft: 'PLANETCRAFT',
+      spacesuit: 'SPACESUIT',
       control: 'CONTROL'
     }
     return labels[bucket]
@@ -6636,8 +6694,9 @@ class VectorShooter {
     this.bossTimer = 75
     this.chestTimer = 28
     this.scoreSaved = false
-    this.camera.x = this.player.x - this.width / 2
-    this.camera.y = this.player.y - this.height / 2
+    const target = cameraTargetFor(this.player, this.width, this.height, this.spaceScale())
+    this.camera.x = target.x
+    this.camera.y = target.y
     this.updateSpaceChunks(true)
   }
 
