@@ -370,6 +370,14 @@ const MAX_SHOCKWAVES = 12
 const MAX_BULLETS = 220
 const MAX_ENEMIES = 320
 const MAX_PICKUPS = 220
+const BASE_FIRE_COOLDOWN = 0.234
+const MIN_FIRE_COOLDOWN = 0.055
+const XP_PICKUP_RADIUS = 5.6
+const XP_PICKUP_MERGE_RADIUS_STEP = 0.45
+const XP_PICKUP_MERGE_RADIUS_MAX = 12.6
+const XP_PICKUP_OUTER_HALO = 9.8
+const DEFAULT_PICKUP_RADIUS = 8
+const CHEST_PICKUP_RADIUS = 16
 const ENEMY_RECYCLE_RADIUS = 2200
 const ENEMY_PRESSURE_RADIUS = 1250
 
@@ -493,10 +501,10 @@ const upgrades: Upgrade[] = [
     name: 'Drift Engine',
     category: 'system',
     bucket: 'navigation',
-    description: 'The manual handling bucket: more speed, sharper recovery, shorter dash cooldown.',
+    description: 'The manual handling bucket: more speed, longer dash burns, sharper recovery, shorter dash cooldown.',
     max: 6,
     rarity: 95,
-    levels: ['+18 move speed', '+8% acceleration', '-8% dash cooldown', '+18 move speed', '+0.08s dash invulnerability', '+22 move speed']
+    levels: ['+18 move speed', 'Dash carries farther', '-8% dash cooldown', '+18 move speed', '+0.08s dash invulnerability', '+22 move speed']
   },
   {
     id: 'nav',
@@ -593,10 +601,10 @@ const upgrades: Upgrade[] = [
     name: 'Phase Rudder',
     category: 'system',
     bucket: 'control',
-    description: 'The panic-button bucket: safer dashes, softer collisions, stronger escape shockwaves.',
+    description: 'The panic-button bucket: safer dashes, brief ram damage, softer collisions, stronger escape shockwaves.',
     max: 4,
     rarity: 58,
-    levels: ['+0.08s dash invulnerability', '-8% collision damage', '+0.08s dash invulnerability', 'Dash shockwave knocks enemies back harder']
+    levels: ['+0.09s dash invulnerability', 'Dash ram shocks enemies', '+0.09s dash invulnerability', 'Dash shockwave knocks enemies back harder']
   },
   {
     id: 'suitO2',
@@ -1196,6 +1204,10 @@ class VectorShooter {
       invuln: 0,
       fireCd: 0,
       dashCd: 0,
+      dashTime: 0,
+      dashX: 0,
+      dashY: -1,
+      dashSpeed: 0,
       speed: 270,
       landedCd: 0
     }
@@ -1559,6 +1571,7 @@ class VectorShooter {
     this.collisionFxCooldown -= dt
     this.player.fireCd -= dt
     this.player.dashCd -= dt
+    this.player.dashTime -= dt
     this.player.invuln -= dt
     this.player.shieldDelay -= dt
     this.player.landedCd -= dt
@@ -1630,16 +1643,25 @@ class VectorShooter {
         move,
         moveActive: input.moveActive
       })
-      this.player.vx += d.x * 520
-      this.player.vy += d.y * 520
-      this.player.dashCd = clamp(1.15 - this.build.engine * 0.12 - this.build.heat * 0.025, 0.48, 1.15)
-      this.player.invuln = 0.18 + this.build.phase * 0.08
+      this.player.dashTime = this.dashDuration()
+      this.player.dashX = d.x
+      this.player.dashY = d.y
+      this.player.dashSpeed = this.dashSpeed()
+      this.player.vx = d.x * this.player.dashSpeed
+      this.player.vy = d.y * this.player.dashSpeed
+      this.player.dashCd = this.dashCooldown()
+      this.player.invuln = this.dashInvulnerability()
       this.camera.shake = Math.max(this.camera.shake, 8)
       this.burst(this.player.x, this.player.y, '#70a8ff', 14 + this.build.phase * 3, 180 + this.build.phase * 24)
       this.deployMineWake(d)
     }
-    this.player.vx *= Math.pow(0.06, dt)
-    this.player.vy *= Math.pow(0.06, dt)
+    if (this.player.dashTime > 0) {
+      this.player.vx = this.player.dashX * this.player.dashSpeed
+      this.player.vy = this.player.dashY * this.player.dashSpeed
+    }
+    const damping = this.player.dashTime > 0 ? 0.34 : 0.06
+    this.player.vx *= Math.pow(damping, dt)
+    this.player.vy *= Math.pow(damping, dt)
     this.player.x += this.player.vx * dt
     this.player.y += this.player.vy * dt
     this.updateSpaceChunks()
@@ -1650,6 +1672,23 @@ class VectorShooter {
 
     if (input.firing && this.player.fireCd <= 0) this.fire()
     if (input.interact) this.tryLand()
+  }
+
+  private dashDuration() {
+    return clamp(0.14 + this.build.engine * 0.014 + this.build.phase * 0.004, 0.14, 0.24)
+  }
+
+  private dashSpeed() {
+    return 760 + this.build.engine * 34 + this.build.phase * 18
+  }
+
+  private dashCooldown() {
+    return clamp(1.15 - this.build.engine * 0.12 - this.build.heat * 0.025, 0.48, 1.15)
+  }
+
+  private dashInvulnerability() {
+    const engineBonus = this.build.engine >= 5 ? 0.08 : 0
+    return 0.22 + engineBonus + this.build.phase * 0.09
   }
 
   private resolveNavigationMove(move: Vec, moveActive: boolean, dt: number): Vec {
@@ -2110,7 +2149,7 @@ class VectorShooter {
     const storm = this.evolved.has('chain')
     const blackNeedle = this.evolved.has('rift')
     const glassRisk = this.relics.has('glassReactor') ? 1.12 : 1
-    this.player.fireCd = clamp((0.18 - rapid * 0.014 - this.build.heat * 0.006 - this.limitBreaks.cooldown * 0.004) * (choir ? 0.88 : 1), 0.055, 0.18)
+    this.player.fireCd = clamp((BASE_FIRE_COOLDOWN - rapid * 0.014 - this.build.heat * 0.006 - this.limitBreaks.cooldown * 0.004) * (choir ? 0.88 : 1), MIN_FIRE_COOLDOWN, BASE_FIRE_COOLDOWN)
     const damage = (14 + this.stats.level * 0.65 + this.build.rail * 2 + this.build.rift * 2 + this.limitBreaks.might * 1.6) * glassRisk
     const speed = 780 + this.build.echo * 55 + this.build.heat * 18 + this.limitBreaks.speed * 14
     const count = 1 + this.build.split + (shatter ? 2 : 0) + Math.floor(this.limitBreaks.amount / 3)
@@ -2426,6 +2465,7 @@ class VectorShooter {
 
       const rr = e.radius + this.player.radius
       if (dist2(e, this.player) < rr * rr) {
+        if (this.tryDashRam(e)) continue
         this.damagePlayer(e.kind === 'warden' ? 24 : e.kind === 'bulwark' ? 22 : e.kind === 'brute' ? 19 : e.kind === 'razor' ? 17 : 13)
         if (e.kind === 'brute' || e.kind === 'bulwark') {
           e.vx -= toP.x * 260
@@ -2481,6 +2521,19 @@ class VectorShooter {
       p.vy *= Math.pow(0.12, dt)
       if (p.life <= 0) this.particles.splice(i, 1)
     }
+  }
+
+  private tryDashRam(e: Enemy) {
+    if (this.player.dashTime <= 0 || this.build.phase <= 0) return false
+    const force = 260 + this.build.phase * 70
+    const damage = 16 + this.build.phase * 9 + this.build.engine * 1.5
+    e.hp -= damage
+    e.flash = Math.max(e.flash, 0.12)
+    e.vx += this.player.dashX * force
+    e.vy += this.player.dashY * force
+    this.burst(e.x, e.y, '#b990ff', 5 + this.build.phase, 130 + this.build.phase * 20)
+    if (e.hp <= 0) this.killEnemy(e, true)
+    return true
   }
 
   private emitEnemyTrail(e: Enemy, color: string, intensity = 1) {
@@ -2736,7 +2789,7 @@ class VectorShooter {
         if (dx * dx + dy * dy > 120 * 120) continue
         pickup.value += value
         pickup.life = Math.max(pickup.life, 22)
-        pickup.radius = clamp(pickup.radius + 0.65, 8, 18)
+        pickup.radius = clamp(pickup.radius + XP_PICKUP_MERGE_RADIUS_STEP, XP_PICKUP_RADIUS, XP_PICKUP_MERGE_RADIUS_MAX)
         pickup.vx += rand(-18, 18)
         pickup.vy += rand(-18, 18)
         return
@@ -2750,7 +2803,8 @@ class VectorShooter {
     const a = Math.random() * TAU
     const speed = rand(80, 220)
     const color = kind === 'xp' ? '#57fff3' : kind === 'repair' ? '#8fff7d' : kind === 'chest' ? '#fff27a' : '#b990ff'
-    this.pickups.push({ kind, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, value, radius: kind === 'chest' ? 16 : 8, life: kind === 'xp' ? 42 : 999, color })
+    const radius = kind === 'chest' ? CHEST_PICKUP_RADIUS : kind === 'xp' ? XP_PICKUP_RADIUS : DEFAULT_PICKUP_RADIUS
+    this.pickups.push({ kind, x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, value, radius, life: kind === 'xp' ? 42 : 999, color })
   }
 
   private collect(p: Pickup) {
@@ -5536,9 +5590,10 @@ class VectorShooter {
       ctx.lineWidth = 2
       const pulse = 1 + Math.sin(this.stats.time * 5 + p.value) * 0.08
       const r = p.radius * pulse * scale
+      const outerGlow = p.kind === 'xp' ? r + XP_PICKUP_RADIUS : r + DEFAULT_PICKUP_RADIUS
       ctx.globalAlpha = 0.28
       ctx.beginPath()
-      ctx.arc(0, 0, r + 8, 0, TAU)
+      ctx.arc(0, 0, outerGlow, 0, TAU)
       ctx.stroke()
       ctx.globalAlpha = 0.95
       ctx.beginPath()
@@ -5576,7 +5631,7 @@ class VectorShooter {
       if (p.kind === 'xp') {
         ctx.globalAlpha = 0.42
         ctx.beginPath()
-        ctx.arc(0, 0, r + 14, 0, TAU)
+        ctx.arc(0, 0, r + XP_PICKUP_OUTER_HALO, 0, TAU)
         ctx.stroke()
       }
       ctx.restore()
@@ -5847,7 +5902,7 @@ class VectorShooter {
       const action = touchActionLabel({ state: 'surface', nearLore: Boolean(lore), nearAlien: Boolean(alien), nearShip })
       this.ui.touchAction.classList.toggle('hidden', !action)
       this.ui.touchAction.textContent = action ?? ''
-      this.ui.touchDash.textContent = this.findSurfaceTarget() ? 'AUTO' : 'SAFE'
+      this.ui.touchDash.classList.add('hidden')
       return
     }
     const planet = this.planets.find((p) => Math.sqrt(dist2(p, this.player)) < p.radius + 86)
@@ -5859,6 +5914,7 @@ class VectorShooter {
     })
     this.ui.touchAction.classList.toggle('hidden', !action)
     this.ui.touchAction.textContent = action ?? ''
+    this.ui.touchDash.classList.remove('hidden')
     this.ui.touchDash.textContent = 'DASH'
   }
 
@@ -6253,7 +6309,7 @@ class VectorShooter {
     this.showOnly('title')
   }
 
-  private showMothership() {
+  private showMothership(options: { scrollTop?: number } = {}) {
     this.state = 'mothership'
     this.ui.title.innerHTML = ''
     this.ui.title.className = 'screen mothership-screen'
@@ -6320,6 +6376,13 @@ class VectorShooter {
     shell.append(header, flight, systemsHeader, grid)
     this.ui.title.append(shell)
     this.showOnly('title')
+    if (options.scrollTop !== undefined) {
+      const restoreScroll = () => {
+        shell.scrollTop = clamp(options.scrollTop ?? 0, 0, Math.max(0, shell.scrollHeight - shell.clientHeight))
+      }
+      restoreScroll()
+      requestAnimationFrame(restoreScroll)
+    }
   }
 
   private mothershipMeter(label: string, value: string, pct: number, tone: string) {
@@ -6403,6 +6466,7 @@ class VectorShooter {
   }
 
   private buyMothershipDepartment(id: MothershipDepartmentId) {
+    const scrollTop = this.ui.title.querySelector<HTMLElement>('.mothership-command')?.scrollTop ?? 0
     const result = purchaseMothershipTier(this.mothership, id)
     if (!result.ok) {
       this.toast(result.reason)
@@ -6411,7 +6475,7 @@ class VectorShooter {
     this.mothership = result.state
     this.saveMothership()
     this.toast(`${result.purchased.name.toUpperCase()} ONLINE`)
-    this.showMothership()
+    this.showMothership({ scrollTop })
   }
 
   private showScores() {

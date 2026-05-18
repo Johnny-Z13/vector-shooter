@@ -29,6 +29,15 @@ test('mothership command integrates workbench manifest and archive as collapsibl
   expect(css).toContain('clip-path: polygon(0 0, calc(100% - 16px) 0')
 })
 
+test('mothership department upgrades preserve command scroll position', () => {
+  const main = source()
+
+  expect(main).toContain('private showMothership(options: { scrollTop?: number } = {})')
+  expect(main).toContain("this.ui.title.querySelector<HTMLElement>('.mothership-command')?.scrollTop")
+  expect(main).toContain('this.showMothership({ scrollTop })')
+  expect(main).toContain('requestAnimationFrame(restoreScroll)')
+})
+
 test('artifacts track relics aliens lore and planet finds with generated icons', () => {
   const main = source()
   const css = styles()

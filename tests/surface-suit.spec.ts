@@ -33,3 +33,11 @@ test('surface tech upgrades improve suit timer health and gun output', () => {
   expect(main).toContain('private surfaceGunDamage()')
   expect(main).toContain('private surfaceGunCooldown()')
 })
+
+test('surface touch controls hide the inactive safe button', () => {
+  const main = source()
+
+  expect(main).toContain("this.ui.touchDash.classList.add('hidden')")
+  expect(main).not.toContain("'SAFE'")
+  expect(main).not.toContain("textContent = 'SAFE'")
+})
