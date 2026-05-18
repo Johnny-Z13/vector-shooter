@@ -7,12 +7,13 @@ import { collectionCatalog, collectionCatalogById, collectionIconAtlasColumns, c
 const source = () => readFileSync(resolve(process.cwd(), 'src/main.ts'), 'utf8')
 const styles = () => readFileSync(resolve(process.cwd(), 'src/style.css'), 'utf8')
 
-test('workbench exposes an artifacts collection tab', () => {
+test('shipboard workbench keeps discoveries in the mothership collection', () => {
   const main = source()
 
-  expect(main).toContain("type WorkbenchView = 'upgrades' | 'manifest' | 'artifacts'")
-  expect(main).toContain("artifactsTab.textContent = 'Artifacts'")
-  expect(main).toContain('this.renderArtifactsCollection()')
+  expect(main).toContain("type WorkbenchView = 'upgrades' | 'manifest'")
+  expect(main).not.toContain("artifactsTab.textContent = 'Artifacts'")
+  expect(main).not.toContain('this.workbenchView === \'artifacts\'')
+  expect(main).toContain("this.mothershipConsoleTab('Collection'")
 })
 
 test('mothership command integrates workbench manifest and collection tabs', () => {
@@ -60,6 +61,16 @@ test('artifacts track relics aliens lore and planet finds with generated icons',
   expect(css).toContain('.artifact-grid')
   expect(css).toContain('.collection-icon-grid')
   expect(css).toContain('.collection-detail')
+})
+
+test('collection and artifact icons are constrained to square boxes', () => {
+  const css = styles()
+
+  expect(css).toContain('.collection-icon {')
+  expect(css).toContain('aspect-ratio: 1 / 1')
+  expect(css).toContain('background-origin: border-box')
+  expect(css).toContain('.collection-detail-icon {')
+  expect(css).toContain('.artifact-icon {')
 })
 
 test('collection catalog only contains real discoverable game records', () => {

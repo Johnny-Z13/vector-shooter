@@ -11,7 +11,7 @@ Galactic Hordes is a mobile-first portrait survival shooter: Vampire Survivors p
 - Auto-targeting ship fire with keyboard, touch, mouse, and gamepad support.
 - Planet landing transitions into on-foot surface salvage.
 - Endless procedural space sectors with deterministic planets and starfields.
-- Workbench upgrades happen when returning to the ship.
+- Workbench upgrades happen when returning to the ship, with the shipboard bench focused on upgrades and the current build manifest.
 - Weighted upgrade choices inspired by Vampire Survivors.
 - Planet relics, weapon evolutions, limit breaks, treasure cores, and mystery cache ambushes.
 - Procedural planet encounter types: salvage, boss, friendly contact, and mixed mystery sites.

@@ -85,7 +85,7 @@ type SurfaceResourceKind = 'crystal' | 'scrap' | 'repair' | 'cache'
 type GraphicsMode = 'LOW' | 'MED' | 'GLOW'
 type AlienGiftKind = 'herb' | 'idol' | 'map' | 'coin'
 type ArtifactKind = 'relic' | 'alien' | 'lore' | 'planet' | 'cache' | 'enemy'
-type WorkbenchView = 'upgrades' | 'manifest' | 'artifacts'
+type WorkbenchView = 'upgrades' | 'manifest'
 type MothershipConsoleView = 'workbench' | 'manifest' | 'collection'
 type MothershipCollectionFilter = 'all' | 'found' | 'locked' | ArtifactKind
 interface Vec {
@@ -5797,15 +5797,7 @@ class VectorShooter {
       this.workbenchView = 'manifest'
       this.renderLevelUp(title, copy)
     })
-    const artifactsTab = document.createElement('button')
-    artifactsTab.className = `workbench-tab ${this.workbenchView === 'artifacts' ? 'active' : ''}`
-    artifactsTab.textContent = 'Artifacts'
-    artifactsTab.addEventListener('click', () => {
-      if (this.workbenchInstalling || this.workbenchView === 'artifacts') return
-      this.workbenchView = 'artifacts'
-      this.renderLevelUp(title, copy)
-    })
-    tabs.append(upgradesTab, manifestTab, artifactsTab)
+    tabs.append(upgradesTab, manifestTab)
     if (this.workbenchView === 'upgrades' && this.workbenchRerolls > 0) {
       const reroll = document.createElement('button')
       reroll.className = 'workbench-tab reroll'
@@ -5838,8 +5830,7 @@ class VectorShooter {
       grid.append(recycle)
     }
     if (this.workbenchView === 'upgrades') view.append(grid)
-    else if (this.workbenchView === 'manifest') view.append(this.renderBuildManifest())
-    else view.append(this.renderArtifactsCollection())
+    else view.append(this.renderBuildManifest())
     panel.append(h, p, tabs, view)
     this.ui.levelup.append(panel)
     this.showOnly('levelup')
