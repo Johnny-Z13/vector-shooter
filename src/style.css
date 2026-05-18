@@ -521,6 +521,110 @@ canvas {
   scrollbar-color: rgba(87, 255, 243, 0.52) rgba(87, 255, 243, 0.08);
 }
 
+.mothership-console-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.mothership-console-tab {
+  min-width: 0;
+  min-height: 48px;
+  display: grid;
+  gap: 2px;
+  align-content: center;
+  border: 1px solid rgba(87, 255, 243, 0.28);
+  border-radius: 6px;
+  background: rgba(2, 10, 16, 0.74);
+  color: rgba(215, 255, 247, 0.7);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  padding: 8px;
+}
+
+.mothership-console-tab span {
+  overflow: hidden;
+  color: var(--cyan);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mothership-console-tab b {
+  overflow: hidden;
+  color: rgba(255, 242, 122, 0.78);
+  font-size: 9px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mothership-console-tab.active {
+  border-color: rgba(255, 242, 122, 0.72);
+  background:
+    linear-gradient(135deg, rgba(255, 242, 122, 0.12), transparent 42%),
+    rgba(10, 12, 16, 0.88);
+  box-shadow: inset 0 0 24px rgba(255, 242, 122, 0.06), 0 0 18px rgba(255, 242, 122, 0.06);
+}
+
+.mothership-console-content {
+  min-height: 248px;
+  border: 1px solid rgba(87, 255, 243, 0.18);
+  border-radius: 6px;
+  background:
+    linear-gradient(135deg, rgba(87, 255, 243, 0.045), transparent 30%),
+    rgba(2, 10, 16, 0.68);
+  padding: 10px;
+  overflow: auto;
+}
+
+.mothership-console-content.collection {
+  height: min(500px, calc(100svh - 120px));
+  min-height: 430px;
+  overflow: hidden;
+}
+
+.mothership-console-content .build-manifest,
+.mothership-console-content .collection-screen {
+  max-height: none;
+}
+
+.mothership-console-panel {
+  display: grid;
+  gap: 10px;
+  min-height: 228px;
+  align-content: center;
+  border: 1px solid rgba(87, 255, 243, 0.16);
+  border-radius: 6px;
+  background:
+    linear-gradient(90deg, rgba(87, 255, 243, 0.045) 1px, transparent 1px),
+    rgba(0, 7, 11, 0.58);
+  background-size: 16px 100%, auto;
+  padding: 14px;
+}
+
+.mothership-console-panel b {
+  color: #f6fffe;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+.mothership-console-panel span {
+  color: rgba(255, 242, 122, 0.82);
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.mothership-console-panel p {
+  margin: 0;
+  color: rgba(215, 255, 247, 0.74);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .mothership-console-section {
   border: 0;
   border-left: 2px solid rgba(87, 255, 243, 0.34);
@@ -1568,6 +1672,194 @@ canvas {
   white-space: nowrap;
 }
 
+.collection-screen {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.collection-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid rgba(87, 255, 243, 0.2);
+  padding-bottom: 8px;
+}
+
+.collection-head b {
+  color: #f6fffe;
+  font-size: 16px;
+  text-transform: uppercase;
+}
+
+.collection-head span {
+  color: rgba(255, 242, 122, 0.78);
+  font-size: 11px;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.collection-head strong {
+  color: #f6fffe;
+  font-size: 15px;
+}
+
+.collection-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.collection-control {
+  min-height: 58px;
+  display: grid;
+  gap: 2px;
+  align-content: center;
+  border: 1px solid rgba(255, 242, 122, 0.42);
+  border-radius: 6px;
+  background: rgba(118, 110, 92, 0.26);
+  color: #f6fffe;
+  font: inherit;
+  text-align: center;
+  padding: 8px;
+}
+
+.collection-control span {
+  color: rgba(246, 255, 254, 0.88);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.collection-control b {
+  color: #ffffff;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.collection-control.filter {
+  cursor: pointer;
+}
+
+.collection-control.filter b {
+  display: inline-grid;
+  align-items: center;
+  justify-self: center;
+  min-width: 112px;
+  min-height: 28px;
+  border: 1px solid rgba(215, 255, 247, 0.5);
+  border-radius: 5px;
+  background: rgba(46, 72, 190, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+  color: #f6fffe;
+  font-size: 13px;
+}
+
+.collection-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: auto;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 4px 2px 2px;
+  scrollbar-color: rgba(255, 242, 122, 0.74) rgba(87, 255, 243, 0.08);
+}
+
+.collection-tile {
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 2px solid rgba(255, 242, 122, 0.62);
+  border-radius: 5px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(87, 255, 243, 0.08), transparent 62%),
+    rgba(0, 5, 9, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.68), 0 1px 0 rgba(255, 255, 255, 0.08);
+  padding: 2px;
+  cursor: pointer;
+}
+
+.collection-tile.selected {
+  border-color: rgba(255, 242, 122, 0.86);
+  box-shadow: 0 0 18px rgba(255, 242, 122, 0.2), inset 0 0 14px rgba(255, 242, 122, 0.08);
+}
+
+.collection-tile.locked {
+  opacity: 0.58;
+  filter: grayscale(0.65);
+}
+
+.collection-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  background-repeat: no-repeat;
+  background-size: 400% 400%;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.62);
+}
+
+.collection-icon.locked {
+  filter: saturate(0.2) brightness(0.64);
+}
+
+.collection-detail {
+  min-height: 118px;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  border: 2px solid rgba(255, 242, 122, 0.62);
+  border-left: 2px solid rgba(255, 242, 122, 0.68);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 242, 122, 0.08), transparent 36%),
+    rgba(4, 9, 14, 0.88);
+  padding: 10px;
+}
+
+.collection-detail-icon {
+  width: 44px;
+  height: 44px;
+  border: 2px solid rgba(255, 242, 122, 0.66);
+  border-radius: 5px;
+  padding: 2px;
+  background: rgba(0, 5, 9, 0.9);
+}
+
+.collection-detail-meta {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.collection-detail b,
+.collection-detail span,
+.collection-detail em {
+  overflow-wrap: anywhere;
+}
+
+.collection-detail b {
+  color: #f6fffe;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.collection-detail span {
+  color: rgba(215, 255, 247, 0.74);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.collection-detail em {
+  color: rgba(255, 242, 122, 0.76);
+  font-size: 10px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
 @keyframes install-pop {
   0% { transform: scale(1); filter: brightness(1); }
   34% { transform: scale(1.07); filter: brightness(1.58) saturate(1.18); }
@@ -1698,6 +1990,46 @@ canvas {
     grid-template-columns: 1fr;
     max-height: min(56vh, 460px);
     gap: 6px;
+  }
+
+  .collection-icon-grid {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .mothership-console-content.collection {
+    height: min(620px, calc(100svh - 72px));
+    min-height: 520px;
+  }
+
+  .collection-controls {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .collection-control {
+    min-height: 54px;
+    padding: 6px;
+  }
+
+  .collection-control span {
+    font-size: 12px;
+  }
+
+  .collection-control b {
+    font-size: 17px;
+  }
+
+  .collection-head {
+    display: grid;
+  }
+
+  .collection-head span {
+    text-align: left;
+  }
+
+  .collection-detail {
+    min-height: 118px;
   }
 
   .artifact-card {

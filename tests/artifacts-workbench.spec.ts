@@ -14,18 +14,23 @@ test('workbench exposes an artifacts collection tab', () => {
   expect(main).toContain('this.renderArtifactsCollection()')
 })
 
-test('mothership command integrates workbench manifest and archive as collapsible sections', () => {
+test('mothership command integrates workbench manifest and collection tabs', () => {
   const main = source()
   const css = styles()
 
   expect(main).toContain('private renderMothershipConsoleStack()')
   expect(main).toContain("consolePanel.className = 'mothership-console-stack'")
-  expect(main).toContain("workbench.className = 'mothership-console-section'")
-  expect(main).toContain('<summary><span>Build Manifest</span><b>systems</b></summary>')
-  expect(main).toContain('<summary><span>Archive</span><b>${Object.keys(this.mothership.archive.records).length} records</b></summary>')
+  expect(main).toContain("type MothershipConsoleView = 'workbench' | 'manifest' | 'collection'")
+  expect(main).toContain("type MothershipCollectionFilter = 'default' | 'found' | 'locked'")
+  expect(main).toContain('const COLLECTION_TOTAL = 143')
+  expect(main).toContain("this.mothershipConsoleTab('Collection'")
+  expect(main).toContain('this.renderCollectionScreen()')
+  expect(main).toContain('this.collectionCards()')
   expect(main).not.toContain('private showMothershipConsole')
   expect(css).toContain('font-family: "Rajdhani", "Oxanium"')
-  expect(css).toContain('.mothership-console-section[open]')
+  expect(css).toContain('.mothership-console-tab.active')
+  expect(css).toContain('.collection-controls')
+  expect(css).toContain('.collection-control.filter')
   expect(css).toContain('clip-path: polygon(0 0, calc(100% - 16px) 0')
 })
 
@@ -42,12 +47,16 @@ test('artifacts track relics aliens lore and planet finds with generated icons',
   const main = source()
   const css = styles()
 
+  expect(main).toContain("import collectionIconAtlasUrl from './assets/collection-icon-atlas.png'")
   expect(main).toContain('interface ArtifactRecord')
   expect(main).toContain('private artifacts = new Map<string, ArtifactRecord>()')
   expect(main).toContain('this.recordArtifact(')
   expect(main).toContain('private artifactIcon(')
+  expect(main).toContain('private collectionIcon(')
   expect(css).toContain('.artifact-icon')
   expect(css).toContain('.artifact-grid')
+  expect(css).toContain('.collection-icon-grid')
+  expect(css).toContain('.collection-detail')
 })
 
 test('artifact archive lists found cards before locked unknowns', () => {

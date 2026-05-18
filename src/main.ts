@@ -1,4 +1,5 @@
 import './style.css'
+import collectionIconAtlasUrl from './assets/collection-icon-atlas.png'
 import glassMiteOracleSheetUrl from './assets/glass-mite-oracle-sheet-alpha.png'
 import planetAlienCatalogUrl from './assets/planet-alien-catalog-alpha.png'
 import planetBossCatalogUrl from './assets/planet-boss-catalog-alpha.png'
@@ -84,6 +85,8 @@ type GraphicsMode = 'LOW' | 'MED' | 'GLOW'
 type AlienGiftKind = 'herb' | 'idol' | 'map' | 'coin'
 type ArtifactKind = 'relic' | 'alien' | 'lore' | 'planet' | 'cache'
 type WorkbenchView = 'upgrades' | 'manifest' | 'artifacts'
+type MothershipConsoleView = 'workbench' | 'manifest' | 'collection'
+type MothershipCollectionFilter = 'default' | 'found' | 'locked'
 interface Vec {
   x: number
   y: number
@@ -348,6 +351,7 @@ const MAX_ENEMIES = 320
 const MAX_PICKUPS = 220
 const ENEMY_RECYCLE_RADIUS = 2200
 const ENEMY_PRESSURE_RADIUS = 1250
+const COLLECTION_TOTAL = 143
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
 const rand = (min: number, max: number) => min + Math.random() * (max - min)
@@ -743,6 +747,9 @@ class VectorShooter {
   private workbenchInstalling = false
   private workbenchView: WorkbenchView = 'upgrades'
   private workbenchRerolls = 0
+  private mothershipConsoleView: MothershipConsoleView = 'workbench'
+  private mothershipCollectionFilter: MothershipCollectionFilter = 'default'
+  private selectedCollectionId: string | null = null
   private planetChoice: Planet | null = null
   private alienChoice: SurfaceAlien | null = null
   private orbitReturnPoint: Vec | null = null
@@ -2764,7 +2771,7 @@ class VectorShooter {
       detail: relic.description,
       source: message,
       color: this.artifactColor('relic', relic.id),
-      icon: hashString(relic.id, 41) % 12
+      icon: hashString(relic.id, 41) % 16
     })
     this.stats.score += 500 + this.relics.size * 120
     this.audio.level()
@@ -2850,7 +2857,7 @@ class VectorShooter {
       detail: planet.reward,
       source: `${source} // ${planet.archetype.toUpperCase()}`,
       color: planet.color,
-      icon: hashString(planet.id, 19) % 12
+      icon: hashString(planet.id, 19) % 16
     })
   }
 
@@ -3331,7 +3338,7 @@ class VectorShooter {
       detail: `${this.surface.event.toUpperCase()} cache cracked open.`,
       source: this.surface.planet.name,
       color: this.artifactColor('cache', `${this.surface.planet.id}:${resource.x}:${resource.y}`),
-      icon: hashString(`${this.surface.planet.id}:${resource.x}:${resource.y}`, 67) % 12
+      icon: hashString(`${this.surface.planet.id}:${resource.x}:${resource.y}`, 67) % 16
     })
     const luck = this.build.luck * powerupBalance.planetCache.luckRelicChancePerRank + this.build.survey * powerupBalance.planetCache.surveyRelicChancePerRank
     const cargoBonus = 1 + this.build.cargo * powerupBalance.upgradeApply.cargoResourceBonusPerRank
@@ -3469,7 +3476,7 @@ class VectorShooter {
       detail: site.copy,
       source: this.surface.planet.name,
       color: this.artifactColor('lore', `${this.surface.planet.id}:${site.kind}`),
-      icon: hashString(`${site.kind}:${site.title}`, 31) % 12
+      icon: hashString(`${site.kind}:${site.title}`, 31) % 16
     })
     let decodedSignal = false
     if (Math.random() < powerupBalance.upgradeApply.loreSignalBaseChance + this.build.survey * powerupBalance.upgradeApply.loreSignalSurveyChancePerRank) {
@@ -3562,7 +3569,7 @@ class VectorShooter {
       detail: `${take ? 'Accepted' : 'Refused'} ${alien.gift.toUpperCase()} gift.`,
       source: this.surface.planet.name,
       color: alien.color,
-      icon: hashString(`${alien.name}:${alien.gift}`, 53) % 12
+      icon: hashString(`${alien.name}:${alien.gift}`, 53) % 16
     })
     this.state = 'surface'
     this.showOnly(null)
@@ -5904,7 +5911,7 @@ class VectorShooter {
     return wrap
   }
 
-  private renderArtifactsCollection() {
+  private renderArtifactsCollection(source: 'run' | 'mothership' = 'run') {
     const wrap = document.createElement('div')
     wrap.className = 'artifact-collection'
     const title = document.createElement('div')
@@ -5912,7 +5919,9 @@ class VectorShooter {
     title.innerHTML = '<b>ARTEFACT ARCHIVE</b><span>relics, contacts, ruins, caches, and planet firsts</span>'
     const summary = document.createElement('div')
     summary.className = 'manifest-summary artifact-summary'
-    const unlocked = Array.from(this.artifacts.values())
+    const unlocked = source === 'run'
+      ? Array.from(this.artifacts.values())
+      : Object.values(this.mothership.archive.records).map((record) => this.normalizeArchiveRecord(record))
     const counts: Record<ArtifactKind, number> = { relic: 0, alien: 0, lore: 0, planet: 0, cache: 0 }
     for (const artifact of unlocked) counts[artifact.kind] += 1
     summary.innerHTML = `
@@ -5924,34 +5933,53 @@ class VectorShooter {
     `
     const grid = document.createElement('div')
     grid.className = 'artifact-grid'
-    for (const card of orderArtifactArchiveCards(this.artifactCards())) grid.append(this.artifactCard(card.record, card.locked))
+    for (const card of orderArtifactArchiveCards(this.artifactCards(source))) grid.append(this.artifactCard(card.record, card.locked))
     wrap.append(title, summary, grid)
     return wrap
   }
 
-  private artifactCards() {
+  private artifactCards(source: 'run' | 'mothership' = 'run') {
     const cards: Array<{ record: ArtifactRecord; locked: boolean }> = []
+    const archive = source === 'run'
+      ? this.artifacts
+      : new Map(Object.values(this.mothership.archive.records).map((record) => {
+        const normalized = this.normalizeArchiveRecord(record)
+        return [normalized.id, normalized]
+      }))
     for (const relic of relics) {
       const id = `relic:${relic.id}`
-      const found = this.artifacts.get(id)
+      const found = archive.get(id)
       cards.push({
         locked: !found,
         record: found ?? {
           id,
           kind: 'relic',
           title: 'Unknown Relic',
-          detail: 'Signature not recovered this run.',
+          detail: source === 'run' ? 'Signature not recovered this run.' : 'Signature not recovered by any expedition.',
           source: 'Relic signal',
           color: '#fff27a',
-          icon: hashString(relic.id, 41) % 12,
+          icon: hashString(relic.id, 41) % 16,
           count: 0
         }
       })
     }
-    for (const artifact of this.artifacts.values()) {
+    for (const artifact of archive.values()) {
       if (artifact.kind !== 'relic') cards.push({ record: artifact, locked: false })
     }
     return cards
+  }
+
+  private normalizeArchiveRecord(record: PersistentArchiveRecord): ArtifactRecord {
+    return {
+      id: record.id,
+      kind: record.kind,
+      title: record.title,
+      detail: record.detail ?? 'Signal detail unavailable.',
+      source: record.source ?? 'Mothership archive',
+      color: record.color ?? this.artifactColor(record.kind, record.id),
+      icon: record.icon ?? hashString(record.id, 29) % 16,
+      count: record.count ?? 1
+    }
   }
 
   private artifactCard(record: ArtifactRecord, locked: boolean) {
@@ -5975,6 +6003,140 @@ class VectorShooter {
       mark.className = `artifact-mark m${i + 1}`
       icon.append(mark)
     }
+    return icon
+  }
+
+  private renderCollectionScreen() {
+    const wrap = document.createElement('div')
+    wrap.className = 'collection-screen'
+    const allRecords = this.collectionCards()
+    const foundCount = allRecords.filter((card) => !card.locked).length
+    const records = this.filteredCollectionCards(allRecords)
+    const firstFound = records.find((card) => !card.locked) ?? records[0]
+    if (!this.selectedCollectionId || !records.some((card) => card.record.id === this.selectedCollectionId)) {
+      this.selectedCollectionId = firstFound?.record.id ?? null
+    }
+    const selected = records.find((card) => card.record.id === this.selectedCollectionId) ?? firstFound
+
+    const head = document.createElement('div')
+    head.className = 'collection-head'
+    head.innerHTML = `
+      <b>Collection</b>
+      <span>Collected: <strong>${foundCount}</strong> of <strong>${COLLECTION_TOTAL}</strong></span>
+    `
+
+    const controls = document.createElement('div')
+    controls.className = 'collection-controls'
+    const sealed = document.createElement('div')
+    sealed.className = 'collection-control sealed'
+    sealed.innerHTML = '<span>Sealed:</span><b>0 / 5</b>'
+    const filter = document.createElement('button')
+    filter.type = 'button'
+    filter.className = 'collection-control filter'
+    filter.innerHTML = `<span>Filter:</span><b>${this.collectionFilterLabel()}</b>`
+    filter.addEventListener('click', () => {
+      this.mothershipCollectionFilter = this.nextCollectionFilter()
+      this.selectedCollectionId = null
+      const scrollTop = this.ui.title.querySelector<HTMLElement>('.mothership-command')?.scrollTop ?? 0
+      this.showMothership({ scrollTop })
+    })
+    controls.append(sealed, filter)
+
+    const grid = document.createElement('div')
+    grid.className = 'collection-icon-grid'
+    for (const card of records) {
+      const button = document.createElement('button')
+      button.className = `collection-tile ${card.record.kind} ${card.locked ? 'locked' : 'found'} ${selected?.record.id === card.record.id ? 'selected' : ''}`
+      button.type = 'button'
+      button.setAttribute('aria-label', card.locked ? `Unknown ${card.record.kind}` : card.record.title)
+      button.append(this.collectionIcon(card.record, card.locked))
+      button.addEventListener('click', () => {
+        this.selectedCollectionId = card.record.id
+        const scrollTop = this.ui.title.querySelector<HTMLElement>('.mothership-command')?.scrollTop ?? 0
+        this.showMothership({ scrollTop })
+      })
+      grid.append(button)
+    }
+
+    const detail = document.createElement('div')
+    detail.className = `collection-detail ${selected?.locked ? 'locked' : 'found'}`
+    if (selected) {
+      const count = selected.record.count > 1 ? ` x${selected.record.count}` : ''
+      const detailIcon = document.createElement('div')
+      detailIcon.className = 'collection-detail-icon'
+      detailIcon.append(this.collectionIcon(selected.record, selected.locked))
+      const meta = document.createElement('div')
+      meta.className = 'collection-detail-meta'
+      meta.innerHTML = `
+        <b>${this.escape(selected.record.title)}${count}</b>
+        <span>${this.escape(selected.record.detail)}</span>
+        <em>${this.escape(selected.record.source)}</em>
+      `
+      detail.append(detailIcon, meta)
+    } else {
+      detail.innerHTML = '<b>Archive Empty</b><span>No discoveries have reached the mothership archive yet.</span><em>Land on planets to recover signals.</em>'
+    }
+
+    wrap.append(head, controls, grid, detail)
+    return wrap
+  }
+
+  private collectionCards() {
+    const found = orderArtifactArchiveCards(this.artifactCards('mothership')).filter((card) => !card.locked)
+    const lockedRelics = this.artifactCards('mothership').filter((card) => card.locked)
+    const cards: Array<{ record: ArtifactRecord; locked: boolean }> = [...found, ...lockedRelics]
+    for (let i = cards.length; i < COLLECTION_TOTAL; i += 1) {
+      const id = `locked:${i}`
+      cards.push({
+        locked: true,
+        record: {
+          id,
+          kind: this.lockedCollectionKind(i),
+          title: 'Unknown Discovery',
+          detail: 'Signal not yet recovered.',
+          source: `Archive slot ${String(i + 1).padStart(3, '0')}`,
+          color: 'rgba(215, 255, 247, 0.28)',
+          icon: i % 16,
+          count: 0
+        }
+      })
+    }
+    return cards.slice(0, COLLECTION_TOTAL)
+  }
+
+  private filteredCollectionCards(cards: Array<{ record: ArtifactRecord; locked: boolean }>) {
+    if (this.mothershipCollectionFilter === 'found') return cards.filter((card) => !card.locked)
+    if (this.mothershipCollectionFilter === 'locked') return cards.filter((card) => card.locked)
+    return cards
+  }
+
+  private collectionFilterLabel() {
+    return {
+      default: 'DEFAULT',
+      found: 'FOUND',
+      locked: 'LOCKED'
+    }[this.mothershipCollectionFilter]
+  }
+
+  private nextCollectionFilter(): MothershipCollectionFilter {
+    if (this.mothershipCollectionFilter === 'default') return 'found'
+    if (this.mothershipCollectionFilter === 'found') return 'locked'
+    return 'default'
+  }
+
+  private lockedCollectionKind(index: number): ArtifactKind {
+    const kinds: ArtifactKind[] = ['relic', 'alien', 'lore', 'planet', 'cache']
+    return kinds[index % kinds.length]
+  }
+
+  private collectionIcon(record: ArtifactRecord, locked = false) {
+    const icon = document.createElement('span')
+    const index = Math.abs(record.icon) % 16
+    const col = index % 4
+    const row = Math.floor(index / 4)
+    icon.className = `collection-icon ${record.kind} ${locked ? 'locked' : ''}`
+    icon.style.backgroundImage = `url("${collectionIconAtlasUrl}")`
+    icon.style.backgroundPosition = `${col * 33.333333}% ${row * 33.333333}%`
     return icon
   }
 
@@ -6194,26 +6356,45 @@ class VectorShooter {
   private renderMothershipConsoleStack() {
     const consolePanel = document.createElement('div')
     consolePanel.className = 'mothership-console-stack'
-    const workbench = document.createElement('details')
-    workbench.className = 'mothership-console-section'
-    workbench.open = true
-    workbench.innerHTML = `
-      <summary><span>Workbench Bay</span><b>${this.pendingUpgrades} signals</b></summary>
-      <p>Mutation choices install during expeditions. Review the ship build and archive here without leaving command.</p>
-    `
-
-    const manifest = document.createElement('details')
-    manifest.className = 'mothership-console-section'
-    manifest.innerHTML = '<summary><span>Build Manifest</span><b>systems</b></summary>'
-    manifest.append(this.renderBuildManifest())
-
-    const archive = document.createElement('details')
-    archive.className = 'mothership-console-section'
-    archive.innerHTML = `<summary><span>Archive</span><b>${Object.keys(this.mothership.archive.records).length} records</b></summary>`
-    archive.append(this.renderArtifactsCollection())
-
-    consolePanel.append(workbench, manifest, archive)
+    const tabs = document.createElement('div')
+    tabs.className = 'mothership-console-tabs'
+    tabs.append(
+      this.mothershipConsoleTab('Workbench', 'workbench', `${this.pendingUpgrades} signals`),
+      this.mothershipConsoleTab('Build', 'manifest', 'systems'),
+      this.mothershipConsoleTab('Collection', 'collection', `${Object.keys(this.mothership.archive.records).length} records`)
+    )
+    const content = document.createElement('div')
+    content.className = `mothership-console-content ${this.mothershipConsoleView}`
+    if (this.mothershipConsoleView === 'manifest') {
+      content.append(this.renderBuildManifest())
+    } else if (this.mothershipConsoleView === 'collection') {
+      content.append(this.renderCollectionScreen())
+    } else {
+      const panel = document.createElement('div')
+      panel.className = 'mothership-console-panel'
+      panel.innerHTML = `
+        <b>Workbench Bay</b>
+        <span>${this.pendingUpgrades} mutation signal${this.pendingUpgrades === 1 ? '' : 's'} banked</span>
+        <p>Mutation choices install during expeditions. Review current systems or inspect the permanent collection before launch.</p>
+      `
+      content.append(panel)
+    }
+    consolePanel.append(tabs, content)
     return consolePanel
+  }
+
+  private mothershipConsoleTab(label: string, view: MothershipConsoleView, meta: string) {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = `mothership-console-tab ${this.mothershipConsoleView === view ? 'active' : ''}`
+    button.innerHTML = `<span>${this.escape(label)}</span><b>${this.escape(meta)}</b>`
+    button.addEventListener('click', () => {
+      if (this.mothershipConsoleView === view) return
+      this.mothershipConsoleView = view
+      const scrollTop = this.ui.title.querySelector<HTMLElement>('.mothership-command')?.scrollTop ?? 0
+      this.showMothership({ scrollTop })
+    })
+    return button
   }
 
   private mothershipStation(title: string, copy: string, actionLabel: string, action: () => void) {
