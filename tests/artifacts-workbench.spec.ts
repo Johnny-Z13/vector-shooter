@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { orderArtifactArchiveCards } from '../src/artifact-archive'
-import { collectionCatalog, collectionIconAtlasColumns, collectionIconAtlasRows } from '../src/collection-catalog'
+import { collectionCatalog, collectionCatalogById, collectionIconAtlasColumns, collectionIconAtlasRows } from '../src/collection-catalog'
 
 const source = () => readFileSync(resolve(process.cwd(), 'src/main.ts'), 'utf8')
 const styles = () => readFileSync(resolve(process.cwd(), 'src/style.css'), 'utf8')
@@ -72,6 +72,7 @@ test('collection catalog only contains real discoverable game records', () => {
   expect(collectionCatalog.some((entry) => entry.id.startsWith('locked:'))).toBe(false)
   expect(iconSet.size).toBe(collectionCatalog.length)
   expect(Math.max(...iconSet)).toBeLessThan(collectionIconAtlasColumns * collectionIconAtlasRows)
+  expect(collectionCatalogById.size).toBe(collectionCatalog.length)
 })
 
 test('collection atlas has enough unique cells for every catalog entry', () => {
@@ -96,6 +97,15 @@ test('collection screen supports Vampire Survivors style category filters and de
   expect(main).toContain("selected.locked ? 'LOCKED' : 'DISCOVERED'")
   expect(css).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))')
   expect(css).toContain('.collection-detail small')
+})
+
+test('collection screen uses canonical catalog icons for found records', () => {
+  const main = source()
+
+  expect(main).toContain('collectionCatalogById.get(record.id)')
+  expect(main).toContain('icon: collectionEntry.icon')
+  expect(main).toContain('icon: entry.icon')
+  expect(main).toContain('color: entry.color')
 })
 
 test('artifact archive lists found cards before locked unknowns', () => {

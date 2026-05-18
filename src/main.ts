@@ -7,7 +7,7 @@ import spaceEnemyCatalogUrl from './assets/space-enemy-catalog-alpha.png'
 import surfaceSpacemanSheetUrl from './assets/surface-spaceman-sheet-alpha.png'
 import titleLogoMarkUrl from './assets/title-logo-mark.png'
 import { orderArtifactArchiveCards } from './artifact-archive'
-import { collectionCatalog, collectionIconAtlasColumns, collectionIconAtlasRows } from './collection-catalog'
+import { collectionCatalog, collectionCatalogById, collectionIconAtlasColumns, collectionIconAtlasRows } from './collection-catalog'
 import {
   activeBalanceProfile,
   balancedSpaceEnemyDefinition,
@@ -6147,16 +6147,23 @@ class VectorShooter {
       const found = archive.get(entry.id)
       return {
         locked: !found,
-        record: found ?? {
-          id: entry.id,
-          kind: entry.kind,
-          title: 'Unknown Discovery',
-          detail: 'Signal not yet recovered.',
-          source: 'Locked collection entry',
-          color: 'rgba(215, 255, 247, 0.28)',
-          icon: entry.icon,
-          count: 0
-        }
+        record: found
+          ? {
+              ...found,
+              kind: entry.kind,
+              color: entry.color,
+              icon: entry.icon
+            }
+          : {
+              id: entry.id,
+              kind: entry.kind,
+              title: 'Unknown Discovery',
+              detail: 'Signal not yet recovered.',
+              source: 'Locked collection entry',
+              color: 'rgba(215, 255, 247, 0.28)',
+              icon: entry.icon,
+              count: 0
+            }
       }
     })
     return orderArtifactArchiveCards(cards)
@@ -6229,14 +6236,26 @@ class VectorShooter {
   }
 
   private recordArtifact(record: Omit<ArtifactRecord, 'count'>) {
+    const collectionEntry = collectionCatalogById.get(record.id)
+    const canonicalRecord = collectionEntry
+      ? {
+          ...record,
+          kind: collectionEntry.kind,
+          color: collectionEntry.color,
+          icon: collectionEntry.icon
+        }
+      : record
     const existing = this.artifacts.get(record.id)
     if (existing) {
       existing.count += 1
-      existing.detail = record.detail
-      existing.source = record.source
+      existing.detail = canonicalRecord.detail
+      existing.source = canonicalRecord.source
+      existing.kind = canonicalRecord.kind
+      existing.color = canonicalRecord.color
+      existing.icon = canonicalRecord.icon
       return
     }
-    this.artifacts.set(record.id, { ...record, count: 1 })
+    this.artifacts.set(record.id, { ...canonicalRecord, count: 1 })
   }
 
   private recordEnemyDiscovery(id: string, title: string, detail: string, source: string, color: string) {

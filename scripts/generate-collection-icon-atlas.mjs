@@ -191,22 +191,53 @@ const drawSurfaceEnemy = (index, color, variant) => {
   const c = rgba(color)
   const accent = rgba('#fff27a', 210)
   const [cx, cy] = base(index, c)
-  if (variant < 3) {
-    poly(ngon(cx, cy, 7, variant === 0 ? 28 : 24, -0.2, variant === 2 ? 10 : 14), c, 1.8)
-    line(cx - 15, cy + 18, cx - 28, cy + 33, accent, 1)
-    line(cx + 15, cy + 18, cx + 28, cy + 33, accent, 1)
+  if (variant === 0) {
+    poly(ngon(cx, cy, 7, 27, -0.2, 14), c, 1.8)
+    line(cx - 17, cy + 15, cx - 32, cy + 28, accent, 1)
+    line(cx + 17, cy + 15, cx + 32, cy + 28, accent, 1)
+    line(cx - 17, cy - 15, cx - 32, cy - 27, accent, 1)
+    line(cx + 17, cy - 15, cx + 32, cy - 27, accent, 1)
+  } else if (variant === 1) {
+    for (const [dx, dy, r] of [[-18, -9, 14], [15, -11, 12], [0, 13, 13]]) {
+      poly(ngon(cx + dx, cy + dy, 6, r, 0.2, r * 0.55), c, 1.25)
+      dot(cx + dx, cy + dy, 3, accent, 0.75)
+    }
+  } else if (variant === 2) {
+    poly([[cx - 30, cy - 6], [cx - 10, cy - 23], [cx + 28, cy - 15], [cx + 19, cy + 16], [cx - 12, cy + 22]], c, 1.8)
+    arc(cx + 3, cy + 1, 18, -1.9, 1.4, accent, 1)
+    line(cx - 27, cy + 2, cx - 39, cy + 8, accent, 1)
   } else if (variant === 3) {
-    poly([[cx, cy - 32], [cx + 23, cy - 2], [cx + 10, cy + 25], [cx - 10, cy + 25], [cx - 23, cy - 2]], c, 1.9)
-    line(cx - 15, cy - 2, cx + 15, cy - 2, accent, 1)
-    line(cx, cy - 21, cx, cy + 17, accent, 1)
+    poly([[cx, cy - 30], [cx + 24, cy - 3], [cx + 12, cy + 24], [cx - 12, cy + 24], [cx - 24, cy - 3]], c, 1.9)
+    line(cx - 16, cy - 4, cx + 16, cy - 4, accent, 1)
+    line(cx, cy - 22, cx, cy + 16, accent, 1)
   } else if (variant === 4) {
-    poly([[cx, cy - 35], [cx + 22, cy - 2], [cx + 9, cy + 27], [cx - 11, cy + 26], [cx - 22, cy - 2]], c, 1.8)
-    line(cx - 14, cy + 17, cx - 32, cy + 32, accent, 1)
-    line(cx + 14, cy + 17, cx + 32, cy + 32, accent, 1)
+    poly([[cx, cy - 31], [cx + 22, cy - 2], [cx + 9, cy + 24], [cx - 11, cy + 23], [cx - 22, cy - 2]], c, 1.8)
+    line(cx - 14, cy + 15, cx - 32, cy + 27, accent, 1)
+    line(cx + 14, cy + 15, cx + 32, cy + 27, accent, 1)
+    dot(cx, cy - 5, 5, accent, 0.65)
+  } else if (variant === 5) {
+    poly([[cx - 32, cy - 12], [cx - 6, cy - 30], [cx + 30, cy - 12], [cx + 20, cy + 18], [cx - 18, cy + 23]], c, 1.9)
+    line(cx - 23, cy - 2, cx + 24, cy - 2, accent, 1)
+    line(cx - 9, cy + 17, cx + 9, cy - 25, accent, 1)
+  } else if (variant === 6) {
+    poly(starPoints(cx, cy, 7, 31, 18, -0.1), c, 1.9)
+    arc(cx, cy, 15, 0, TAU, accent, 1.1)
+    line(cx - 30, cy + 25, cx + 30, cy + 25, accent, 1)
+  } else if (variant === 7) {
+    poly([[cx - 29, cy], [cx - 8, cy - 25], [cx + 25, cy - 16], [cx + 26, cy + 16], [cx - 8, cy + 25]], c, 1.9)
+    arc(cx + 3, cy, 22, -1.3, 1.3, accent, 1)
+    dot(cx + 12, cy, 4, accent, 0.8)
+  } else if (variant === 8) {
+    poly([[cx - 30, cy - 16], [cx, cy - 28], [cx + 30, cy - 16], [cx + 18, cy + 23], [cx - 18, cy + 23]], c, 1.9)
+    line(cx - 31, cy - 16, cx - 42, cy - 27, accent, 1)
+    line(cx + 31, cy - 16, cx + 42, cy - 27, accent, 1)
+    arc(cx, cy + 2, 16, 0, TAU, accent, 1)
   } else {
-    const sides = 6 + (variant % 4)
-    poly(ngon(cx, cy, sides, 30, variant * 0.2, 16 + variant), c, 1.9)
-    arc(cx, cy, 18 + variant, variant * 0.3, TAU + variant * 0.3, accent, 1)
+    poly(ngon(cx, cy, 9, 28, 0.22, 15), c, 1.8)
+    for (let i = 0; i < 3; i += 1) {
+      const a = -0.7 + i * 0.7
+      line(cx, cy, cx + Math.cos(a) * 33, cy + Math.sin(a) * 24, accent, 1)
+    }
   }
 }
 
@@ -214,16 +245,28 @@ const drawAlien = (index, color, variant) => {
   const c = rgba(color)
   const accent = rgba('#8fff7d', 210)
   const [cx, cy] = base(index, c)
-  const head = 11 + (variant % 2) * 2
-  arc(cx, cy - 22, head, 0, TAU, c, 1.7)
-  arc(cx, cy + 5, 18 + variant, 0, TAU, c, 1.7)
-  for (let i = 0; i < 3; i += 1) dot(cx + (i - 1) * 7, cy - 23 + Math.sin(variant + i) * 2, 2, accent, 0.8)
-  line(cx - 11, cy + 19, cx - 24 - variant, cy + 34, c, 1.3)
-  line(cx + 11, cy + 19, cx + 24 + variant, cy + 34, c, 1.3)
-  if (variant === 1) line(cx - 23, cy - 37, cx + 23, cy - 37, accent, 1)
-  if (variant === 2) arc(cx, cy + 4, 27, -0.4, Math.PI + 0.4, accent, 1)
-  if (variant === 3) poly([[cx, cy - 42], [cx + 10, cy - 30], [cx, cy - 18], [cx - 10, cy - 30]], accent, 1)
-  if (variant === 4) arc(cx, cy - 22, 21, Math.PI * 0.15, Math.PI * 0.85, accent, 1)
+  if (variant === 0) {
+    arc(cx, cy - 18, 13, 0, TAU, c, 1.7)
+    arc(cx, cy + 8, 18, 0, TAU, c, 1.7)
+    poly([[cx - 7, cy - 35], [cx, cy - 48], [cx + 8, cy - 35]], accent, 1.1, false)
+  } else if (variant === 1) {
+    poly([[cx - 23, cy - 18], [cx, cy - 33], [cx + 23, cy - 18], [cx + 17, cy + 22], [cx - 17, cy + 22]], c, 1.8)
+    line(cx - 29, cy - 34, cx + 29, cy - 34, accent, 1)
+    for (let i = 0; i < 4; i += 1) line(cx - 22 + i * 15, cy - 34, cx - 18 + i * 12, cy - 25, accent, 0.8)
+  } else if (variant === 2) {
+    arc(cx, cy - 2, 27, 0, TAU, c, 1.9)
+    arc(cx, cy - 2, 16, 0, TAU, accent, 1.2)
+    dot(cx, cy - 2, 5, c, 0.75)
+  } else if (variant === 3) {
+    arc(cx, cy + 4, 19, 0, TAU, c, 1.7)
+    poly(starPoints(cx, cy - 27, 5, 21, 8, -Math.PI / 2), accent, 1.2)
+    line(cx - 25, cy + 25, cx + 25, cy + 25, c, 1.1)
+  } else {
+    poly([[cx, cy - 35], [cx + 21, cy - 8], [cx + 13, cy + 24], [cx - 13, cy + 24], [cx - 21, cy - 8]], c, 1.8)
+    arc(cx, cy - 13, 20, Math.PI * 0.08, Math.PI * 0.92, accent, 1)
+    poly([[cx, cy - 23], [cx + 10, cy - 9], [cx, cy + 5], [cx - 10, cy - 9]], accent, 1)
+  }
+  for (let i = 0; i < 3; i += 1) dot(cx + (i - 1) * 6, cy - 18 + Math.sin(variant + i) * 2, 1.8, accent, 0.65)
 }
 
 const drawLore = (index, color, variant) => {
@@ -254,14 +297,26 @@ const drawPlanet = (index, color, variant) => {
   const accent = rgba('#d7fff7', 210)
   const [cx, cy] = base(index, c)
   arc(cx, cy, 27, 0, TAU, c, 1.9)
-  arc(cx, cy + 1, 31, Math.PI * 0.08, Math.PI * 0.92, accent, 1)
-  if (variant === 0) poly([[cx - 10, cy - 7], [cx + 10, cy - 7], [cx + 10, cy + 9], [cx - 10, cy + 9]], accent, 1.2)
-  else if (variant === 1) poly(starPoints(cx, cy, 6, 19, 8, 0.1), c, 1.4)
-  else if (variant === 2) line(cx - 18, cy, cx + 18, cy, accent, 1.4)
-  else if (variant === 3) poly([[cx, cy - 17], [cx + 14, cy], [cx, cy + 17], [cx - 14, cy]], accent, 1.2)
-  else if (variant === 4) arc(cx, cy, 16, -0.5, TAU - 0.5, accent, 1.2)
-  else if (variant === 5) line(cx - 12, cy - 12, cx + 12, cy + 12, accent, 1.2)
-  else for (let i = 0; i < 5; i += 1) dot(cx + Math.cos(i * 1.7) * 16, cy + Math.sin(i * 1.7) * 13, 2.4, accent, 0.7)
+  arc(cx, cy + 1, 31, Math.PI * 0.08, Math.PI * 0.92, accent, 0.9)
+  if (variant === 0) {
+    poly([[cx - 13, cy - 8], [cx + 13, cy - 8], [cx + 13, cy + 10], [cx - 13, cy + 10]], accent, 1.2)
+    line(cx - 13, cy + 1, cx + 13, cy + 1, accent, 0.9)
+  } else if (variant === 1) {
+    poly(starPoints(cx, cy, 8, 22, 10, 0.1), c, 1.5)
+  } else if (variant === 2) {
+    line(cx - 20, cy, cx + 20, cy, accent, 1.4)
+    line(cx, cy - 19, cx, cy + 19, accent, 1.4)
+  } else if (variant === 3) {
+    poly([[cx, cy - 18], [cx + 15, cy], [cx, cy + 18], [cx - 15, cy]], accent, 1.2)
+  } else if (variant === 4) {
+    arc(cx, cy, 17, -0.7, TAU - 0.7, accent, 1.2)
+    line(cx - 18, cy + 15, cx + 18, cy - 15, accent, 0.9)
+  } else if (variant === 5) {
+    line(cx - 15, cy - 12, cx + 15, cy + 12, accent, 1.2)
+    line(cx - 16, cy + 12, cx + 16, cy - 12, accent, 1.2)
+  } else {
+    for (let i = 0; i < 7; i += 1) dot(cx + Math.cos(i * 1.55) * 16, cy + Math.sin(i * 1.55) * 12, 2.4, accent, 0.7)
+  }
 }
 
 const drawCache = (index, color, variant) => {

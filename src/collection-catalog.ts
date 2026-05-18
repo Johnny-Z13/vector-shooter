@@ -97,3 +97,5 @@ export const collectionCatalog: CollectionCatalogEntry[] = [
   ...planetEntries,
   ...cacheEntries
 ]
+
+export const collectionCatalogById = new Map(collectionCatalog.map((entry) => [entry.id, entry]))
