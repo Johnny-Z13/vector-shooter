@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "docs:balance": "node scripts/update-balance-docs.mjs",
+    "hooks:install": "git config core.hooksPath .githooks",
     "preview": "vite preview"
   },
   "devDependencies": {

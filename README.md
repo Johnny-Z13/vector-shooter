@@ -88,6 +88,44 @@ Upgrades are grouped into bigger build buckets:
 
 See [docs/upgrade-progression-design.md](docs/upgrade-progression-design.md) for the full progression design.
 
+## Balance Calibration
+
+Combat and difficulty tuning lives in `src/game-balance.ts`. Run `npm run docs:balance` after changing balance values, or install the local hook with `npm run hooks:install` so the generated balance docs update on commit.
+
+<!-- BALANCE-GENERATED:START -->
+### Active Balance Snapshot
+
+Active balance mode: `testEasy` (Testing Easy).
+
+| Multiplier | Value |
+| --- | ---: |
+| Enemy HP | 0.45 |
+| Enemy damage | 0.4 |
+| Enemy speed | 0.82 |
+| Enemy projectile speed | 0.85 |
+| Enemy attack cooldown | 1.35 |
+| Spawn rate | 0.55 |
+| Boss rate | 0.65 |
+| Surface HP | 0.5 |
+| Surface damage | 0.45 |
+| Surface speed | 0.8 |
+
+| Enemy | HP | Speed | Contact | Time Gate | Spawn Roll |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| chaser | 34 | 123 | 13 | 0s | 1 |
+| splinter | 23 | 158 | 13 | 25s | 0.82 |
+| lancer | 60 | 154 | 13 | 55s | 0.7 |
+| mine | 46 | 68 | 23 | 100s | 0.58 |
+| brute | 170 | 98 | 19 | 180s | 0.39 |
+| shooter | 72 | 118 | 13 | 120s | 0.49 |
+| warden | 520 | 134 | 24 | 0s | 0 |
+| razor | 92 | 335 | 17 | 205s | 0.18 |
+| skimmer | 126 | 176 | 13 | 165s | 0.29 |
+| bulwark | 270 | 86 | 22 | 270s | 0.07 |
+
+Generated from `src/game-balance.ts`. Do not edit this section by hand.
+<!-- BALANCE-GENERATED:END -->
+
 ## Endless Exploration
 
 Space is split into deterministic 3600px sectors around the player. The game keeps nearby sectors alive in memory and prunes distant ones, so travelling across boundaries feels seamless without turning the whole universe into one huge expensive scene.

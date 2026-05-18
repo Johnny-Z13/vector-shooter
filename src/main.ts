@@ -6,6 +6,22 @@ import spaceEnemyCatalogUrl from './assets/space-enemy-catalog-alpha.png'
 import surfaceSpacemanSheetUrl from './assets/surface-spaceman-sheet-alpha.png'
 import titleLogoMarkUrl from './assets/title-logo-mark.png'
 import { orderArtifactArchiveCards } from './artifact-archive'
+import {
+  activeBalanceProfile,
+  balancedSpaceEnemyDefinition,
+  enemyAttackCooldown,
+  scaledBossTimer,
+  scaledSpawnTimer,
+  scaledSurfaceDamage,
+  scaledSurfaceHp,
+  scaledSurfaceSpeed,
+  spaceEnemyBalance,
+  spaceEnemyKinds,
+  spaceEnemyRunScale,
+  spaceEnemySpeedBonus,
+  spaceSpawnBalance,
+  surfaceThreatBalance
+} from './game-balance'
 import { navigationCruiseScalar, navigationTrailProfile } from './navigation-cruise'
 import { ONBOARDING_PLANET_COUNT, onboardingPlanetSlot, useOnboardingPlanetField } from './onboarding-planets'
 import { pickupMagnetRange, pickupMagnetStrength } from './pickup-magnet'
@@ -2309,6 +2325,7 @@ class VectorShooter {
     const hunger = this.relics.has('hungryCompass') ? 1.08 : 1
     for (let i = this.enemies.length - 1; i >= 0; i -= 1) {
       const e = this.enemies[i]
+      const enemyBalance = balancedSpaceEnemyDefinition(e.kind)
       e.phase += dt
       e.cd -= dt
       e.flash -= dt
@@ -2325,18 +2342,18 @@ class VectorShooter {
         const rangePull = d > 560 ? 1 : d < 360 ? -1.35 : 0.1
         e.vx += (toP.x * rangePull * e.speed + side.x * e.speed * 0.55) * dt
         e.vy += (toP.y * rangePull * e.speed + side.y * e.speed * 0.55) * dt
-        if (e.cd <= 0 && d < 760) {
-          e.cd = clamp(2.35 - this.stats.time / 260, 1.35, 2.35)
+        if (e.cd <= 0 && d < (enemyBalance.attackRange ?? 0)) {
+          e.cd = enemyAttackCooldown(enemyBalance, this.stats.time)
           const spread = this.stats.time > 210 ? 0.18 : 0
           for (let shot = spread ? -1 : 0; shot <= (spread ? 1 : 0); shot += 1) {
             const a = Math.atan2(toP.y, toP.x) + shot * spread
             this.bullets.push({
               x: e.x + Math.cos(a) * e.radius,
               y: e.y + Math.sin(a) * e.radius,
-              vx: Math.cos(a) * 310,
-              vy: Math.sin(a) * 310,
+              vx: Math.cos(a) * (enemyBalance.projectileSpeed ?? 0),
+              vy: Math.sin(a) * (enemyBalance.projectileSpeed ?? 0),
               life: 1.8,
-              damage: 10,
+              damage: enemyBalance.projectileDamage ?? 0,
               radius: 4,
               color: '#ff61d8',
               pierce: 0,
@@ -2351,7 +2368,7 @@ class VectorShooter {
         e.vx += (side.x * e.speed * 5.4 + toP.x * e.speed * 0.7) * dt
         e.vy += (side.y * e.speed * 5.4 + toP.y * e.speed * 0.7) * dt
         if (e.cd <= 0) {
-          e.cd = 1.15
+          e.cd = enemyBalance.attackCooldownSeconds ?? 0
           e.vx += side.x * 220 + toP.x * 90
           e.vy += side.y * 220 + toP.y * 90
           this.emitEnemyTrail(e, '#57fff3', 2)
@@ -2364,18 +2381,18 @@ class VectorShooter {
         const wave = Math.sin(e.phase * 3.6) * e.speed * 0.35
         e.vx += (toP.x * rangePull * e.speed + side.x * e.speed * 1.28 + side.x * wave) * dt
         e.vy += (toP.y * rangePull * e.speed + side.y * e.speed * 1.28 + side.y * wave) * dt
-        if (e.cd <= 0 && d < 840) {
-          e.cd = clamp(2.15 - this.stats.time / 320, 1.35, 2.15)
+        if (e.cd <= 0 && d < (enemyBalance.attackRange ?? 0)) {
+          e.cd = enemyAttackCooldown(enemyBalance, this.stats.time)
           const baseAngle = Math.atan2(toP.y, toP.x)
           for (let shot = -1; shot <= 1; shot += 1) {
             const a = baseAngle + shot * 0.24
             this.bullets.push({
               x: e.x + Math.cos(a) * e.radius,
               y: e.y + Math.sin(a) * e.radius,
-              vx: Math.cos(a) * 340,
-              vy: Math.sin(a) * 340,
+              vx: Math.cos(a) * (enemyBalance.projectileSpeed ?? 0),
+              vy: Math.sin(a) * (enemyBalance.projectileSpeed ?? 0),
               life: 1.55,
-              damage: 11,
+              damage: enemyBalance.projectileDamage ?? 0,
               radius: 4.5,
               color: '#ffe66d',
               pierce: 0,
@@ -2391,17 +2408,17 @@ class VectorShooter {
         const drift = Math.sin(e.phase * 1.6 + e.id) * e.speed * 0.65
         e.vx += (toP.x * rangePull * e.speed + side.x * drift) * dt
         e.vy += (toP.y * rangePull * e.speed + side.y * drift) * dt
-        if (e.cd <= 0 && d < 900) {
-          e.cd = 1.55
+        if (e.cd <= 0 && d < (enemyBalance.attackRange ?? 0)) {
+          e.cd = enemyBalance.attackCooldownSeconds ?? 0
           for (let k = 0; k < 10; k += 1) {
             const a = (k / 10) * TAU + e.phase * 0.55
             this.bullets.push({
               x: e.x + Math.cos(a) * e.radius,
               y: e.y + Math.sin(a) * e.radius,
-              vx: Math.cos(a) * 235,
-              vy: Math.sin(a) * 235,
+              vx: Math.cos(a) * (enemyBalance.projectileSpeed ?? 0),
+              vy: Math.sin(a) * (enemyBalance.projectileSpeed ?? 0),
               life: 1.45,
-              damage: 9,
+              damage: enemyBalance.projectileDamage ?? 0,
               radius: 4,
               color: '#f46cff',
               pierce: 0,
@@ -2415,7 +2432,7 @@ class VectorShooter {
         if (e.cd <= 0 && d < 520) {
           e.vx = toP.x * (520 + this.stats.time * 1.2)
           e.vy = toP.y * (520 + this.stats.time * 1.2)
-          e.cd = 2.2
+          e.cd = enemyBalance.attackCooldownSeconds ?? 0
           this.burst(e.x, e.y, '#fff27a', 8, 120)
         } else {
           e.vx += Math.sin(e.phase * 3) * 14 * dt
@@ -2425,7 +2442,7 @@ class VectorShooter {
         e.vx += Math.sin(e.phase * 2.1) * 28 * dt
         e.vy += Math.cos(e.phase * 1.7) * 28 * dt
         if (Math.sqrt(dist2(e, this.player)) < 74) {
-          this.damagePlayer(23)
+          this.damagePlayer(enemyBalance.contactDamage)
           this.killEnemy(e, false)
           continue
         }
@@ -2434,16 +2451,16 @@ class VectorShooter {
         e.vx += toP.x * (d > 380 ? 120 : -70) * dt
         e.vy += toP.y * (d > 380 ? 120 : -70) * dt
         if (e.cd <= 0) {
-          e.cd = 1.2
+          e.cd = enemyBalance.attackCooldownSeconds ?? 0
           for (let k = 0; k < 12; k += 1) {
             const a = (k / 12) * TAU + e.phase
             this.bullets.push({
               x: e.x + Math.cos(a) * e.radius,
               y: e.y + Math.sin(a) * e.radius,
-              vx: Math.cos(a) * 260,
-              vy: Math.sin(a) * 260,
+              vx: Math.cos(a) * (enemyBalance.projectileSpeed ?? 0),
+              vy: Math.sin(a) * (enemyBalance.projectileSpeed ?? 0),
               life: 1.2,
-              damage: 8,
+              damage: enemyBalance.projectileDamage ?? 0,
               radius: 4,
               color: '#ff5d73',
               pierce: 0,
@@ -2452,7 +2469,7 @@ class VectorShooter {
           }
         }
       }
-      const max = e.kind === 'razor' ? 690 : e.kind === 'lancer' ? 460 : e.kind === 'brute' ? e.speed * 0.84 : e.speed
+      const max = enemyBalance.maxSpeed ?? (e.kind === 'brute' ? e.speed * 0.84 : e.speed)
       const s = len(e.vx, e.vy)
       if (s > max) {
         e.vx = (e.vx / s) * max
@@ -2467,7 +2484,7 @@ class VectorShooter {
       const rr = e.radius + this.player.radius
       if (dist2(e, this.player) < rr * rr) {
         if (this.tryDashRam(e)) continue
-        this.damagePlayer(e.kind === 'warden' ? 24 : e.kind === 'bulwark' ? 22 : e.kind === 'brute' ? 19 : e.kind === 'razor' ? 17 : 13)
+        this.damagePlayer(enemyBalance.contactDamage)
         if (e.kind === 'brute' || e.kind === 'bulwark') {
           e.vx -= toP.x * 260
           e.vy -= toP.y * 260
@@ -2589,15 +2606,22 @@ class VectorShooter {
     this.reinforceQuietField()
     const pressure = this.stats.time / 60
     if (this.spawnTimer <= 0) {
-      this.spawnTimer = clamp(0.62 - pressure * 0.045 - this.stats.planets * 0.025, 0.12, 0.62)
-      const pack = 1 + Math.floor(pressure * 0.65) + (Math.random() < 0.2 ? 2 : 0)
+      const cooldown = spaceSpawnBalance.spawnCooldown
+      const packBalance = spaceSpawnBalance.pack
+      this.spawnTimer = scaledSpawnTimer(clamp(
+        cooldown.maxSeconds - pressure * cooldown.pressureReductionPerMinute - this.stats.planets * cooldown.planetReduction,
+        cooldown.minSeconds,
+        cooldown.maxSeconds
+      ))
+      const pack = packBalance.base + Math.floor(pressure * packBalance.pressurePerMinute) + (Math.random() < packBalance.bonusChance ? packBalance.bonusCount : 0)
       const room = Math.max(0, MAX_ENEMIES - this.enemies.length)
       for (let i = 0; i < Math.min(pack, room); i += 1) this.spawnEnemy(this.pickEnemyKind())
     }
     if (this.bossTimer <= 0) {
-      this.bossTimer = clamp(95 - this.stats.time / 7, 46, 95)
+      const boss = spaceSpawnBalance.boss
+      this.bossTimer = scaledBossTimer(clamp(boss.maxSeconds - this.stats.time / boss.timeReductionDivisor, boss.minSeconds, boss.maxSeconds))
       this.spawnEnemy('warden')
-      if (this.stats.time > 180 && this.enemies.length < MAX_ENEMIES - 2) this.spawnEnemy(Math.random() < 0.55 ? 'brute' : 'shooter')
+      if (this.stats.time > boss.reinforcementTimeSeconds && this.enemies.length < MAX_ENEMIES - 2) this.spawnEnemy(Math.random() < boss.reinforcementChance ? 'brute' : 'shooter')
       this.toast('WARDEN VECTOR ENTERING THE FIELD')
     }
     if (this.chestTimer <= 0) {
@@ -2616,11 +2640,12 @@ class VectorShooter {
 
   private reinforceQuietField() {
     const pressure = this.stats.time / 60
+    const quiet = spaceSpawnBalance.quietField
     const nearby = this.countNearbyEnemies(ENEMY_PRESSURE_RADIUS)
-    const targetNearbyEnemies = clamp(7 + Math.floor(pressure * 0.9) + this.stats.planets, 7, 18)
-    const maxPack = clamp(3 + Math.floor(pressure * 0.4), 3, 7)
+    const targetNearbyEnemies = clamp(quiet.targetNearbyBase + Math.floor(pressure * quiet.targetNearbyPerMinute) + this.stats.planets, quiet.targetNearbyMin, quiet.targetNearbyMax)
+    const maxPack = clamp(quiet.maxPackBase + Math.floor(pressure * quiet.maxPackPerMinute), quiet.maxPackMin, quiet.maxPackMax)
     const room = Math.max(0, MAX_ENEMIES - this.enemies.length)
-    const pack = Math.min(room, pressurePackSize({ nearbyEnemies: nearby, targetNearbyEnemies, maxPack }))
+    const pack = Math.min(room, Math.floor(pressurePackSize({ nearbyEnemies: nearby, targetNearbyEnemies, maxPack }) * activeBalanceProfile.spawnRateMultiplier))
     for (let i = 0; i < pack; i += 1) this.spawnEnemy(this.pickEnemyKind())
   }
 
@@ -2636,22 +2661,18 @@ class VectorShooter {
   private pickEnemyKind(): EnemyKind {
     const t = this.stats.time
     const r = Math.random()
-    if (t > 270 && r < 0.07) return 'bulwark'
-    if (t > 205 && r < 0.18) return 'razor'
-    if (t > 165 && r < 0.29) return 'skimmer'
-    if (t > 180 && r < 0.39) return 'brute'
-    if (t > 120 && r < 0.49) return 'shooter'
-    if (t > 100 && r < 0.58) return 'mine'
-    if (t > 55 && r < 0.7) return 'lancer'
-    if (t > 25 && r < 0.82) return 'splinter'
+    for (const kind of [...spaceEnemyKinds].reverse()) {
+      const enemy = spaceEnemyBalance[kind]
+      if (enemy.spawnRollCeiling > 0 && t > enemy.timeGateSeconds && r < enemy.spawnRollCeiling) return kind
+    }
     return 'chaser'
   }
 
   private spawnEnemy(kind: EnemyKind) {
     if (this.enemies.length >= MAX_ENEMIES) return
     const p = spaceEnemySpawnPoint(kind, this.player, 620, 980)
-    const scale = 1.12 + this.stats.time / 200 + this.stats.planets * 0.1
-    const base = spaceEnemyDefinitions[kind]
+    const scale = spaceEnemyRunScale(this.stats.time, this.stats.planets)
+    const base = balancedSpaceEnemyDefinition(kind)
     this.enemies.push({
       id: this.enemyId++,
       kind,
@@ -2661,8 +2682,8 @@ class VectorShooter {
       vy: 0,
       hp: base.hp * scale,
       maxHp: base.hp * scale,
-      radius: base.r,
-      speed: base.speed + this.stats.time * 0.3,
+      radius: base.radius,
+      speed: base.speed + spaceEnemySpeedBonus(this.stats.time),
       value: Math.floor(base.value * scale),
       phase: Math.random() * TAU,
       cd: Math.random() * 2,
@@ -3288,8 +3309,22 @@ class VectorShooter {
       y: point.y,
       vx: 0,
       vy: 0,
-      hp: event === 'horde' ? 16 + this.stats.time * 0.08 : event === 'swarm' ? 20 + this.stats.time * 0.12 : planet.name === 'NULL CATHEDRAL' ? 46 : 28,
-      radius: event === 'horde' ? 12 : event === 'swarm' ? 13 : planet.name === 'NULL CATHEDRAL' ? 22 : 16,
+      hp: scaledSurfaceHp(
+        event === 'horde'
+          ? surfaceThreatBalance.generic.hordeBaseHp + this.stats.time * surfaceThreatBalance.generic.hordeHpPerSecond
+          : event === 'swarm'
+            ? surfaceThreatBalance.generic.swarmBaseHp + this.stats.time * surfaceThreatBalance.generic.swarmHpPerSecond
+            : planet.name === 'NULL CATHEDRAL'
+              ? surfaceThreatBalance.generic.specialBaseHp
+              : surfaceThreatBalance.generic.baseHp
+      ),
+      radius: event === 'horde'
+        ? surfaceThreatBalance.generic.hordeRadius
+        : event === 'swarm'
+          ? surfaceThreatBalance.generic.swarmRadius
+          : planet.name === 'NULL CATHEDRAL'
+            ? surfaceThreatBalance.generic.specialRadius
+            : surfaceThreatBalance.generic.radius,
       phase: rand(0, TAU),
       color: event === 'horde' ? '#ff61d8' : planet.name === 'RED MERCY' || planet.name === 'NULL CATHEDRAL' ? '#ff5d73' : '#fff27a',
       hit: 0
@@ -3310,8 +3345,8 @@ class VectorShooter {
       y: point.y,
       vx: 0,
       vy: 0,
-      hp: 120 + this.stats.time * 0.36 + this.stats.level * 6,
-      radius: 42,
+      hp: scaledSurfaceHp(surfaceThreatBalance.boss.baseHp + this.stats.time * surfaceThreatBalance.boss.hpPerSecond + this.stats.level * surfaceThreatBalance.boss.hpPerLevel),
+      radius: surfaceThreatBalance.boss.radius,
       phase: rand(0, TAU),
       color: ['#57fff3', '#fff27a', '#8fff7d', '#ff61d8', '#d7fff7'][row],
       hit: 0,
@@ -3328,8 +3363,8 @@ class VectorShooter {
       y: point.y,
       vx: 0,
       vy: 0,
-      hp: 70 + this.stats.time * 0.18,
-      radius: 32,
+      hp: scaledSurfaceHp(surfaceThreatBalance.oracle.baseHp + this.stats.time * surfaceThreatBalance.oracle.hpPerSecond),
+      radius: surfaceThreatBalance.oracle.radius,
       phase: rand(0, TAU),
       color: '#57fff3',
       hit: 0,
@@ -3606,8 +3641,8 @@ class VectorShooter {
       threat.phase += dt
       threat.hit -= dt
       const toPilot = norm(this.surface.pilot.x - threat.x, this.surface.pilot.y - threat.y)
-      const accel = threat.boss ? 230 : 360
-      const maxSpeed = threat.boss ? 70 : 92
+      const accel = scaledSurfaceSpeed(threat.boss ? surfaceThreatBalance.boss.acceleration : surfaceThreatBalance.generic.acceleration)
+      const maxSpeed = scaledSurfaceSpeed(threat.boss ? surfaceThreatBalance.boss.maxSpeed : surfaceThreatBalance.generic.maxSpeed)
       threat.vx += toPilot.x * accel * dt
       threat.vy += toPilot.y * accel * dt
       const speed = len(threat.vx, threat.vy)
@@ -3621,7 +3656,7 @@ class VectorShooter {
       threat.y = clamp(threat.y + threat.vy * dt, 40, this.surface.height - 40)
       const rr = threat.radius + surfacePilotCollisionRadius()
       if ((threat.x - this.surface.pilot.x) ** 2 + (threat.y - this.surface.pilot.y) ** 2 < rr * rr && this.surface.pilot.invuln <= 0) {
-        this.damagePlayer(threat.boss ? 16 : 9)
+        this.damagePlayer(scaledSurfaceDamage(threat.boss ? surfaceThreatBalance.boss.contactDamage : surfaceThreatBalance.generic.contactDamage))
         this.burst(this.surface.pilot.x, this.surface.pilot.y, '#ff5d73', 10, 160)
       }
       if (threat.hp <= 0) {
