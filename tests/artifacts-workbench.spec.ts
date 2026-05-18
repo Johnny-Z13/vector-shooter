@@ -164,3 +164,15 @@ test('desktop workbench uses one fixed scrollable manifest panel', () => {
   expect(css).toContain('.artifact-grid {')
   expect(css).toContain('max-height: none')
 })
+
+test('mothership console controls expose clear focus disabled and tab labels', () => {
+  const main = source()
+  const css = styles()
+
+  expect(main).toContain("button.setAttribute('aria-label', `${label}: ${meta}`)")
+  expect(main).toContain("button.setAttribute('aria-pressed',")
+  expect(css).toContain('.mothership-console-tab:focus-visible')
+  expect(css).toContain('.collection-filter-chip:focus-visible')
+  expect(css).toContain('.vector-button:disabled')
+  expect(css).toContain('background: linear-gradient(135deg, rgba(255, 242, 122, 0.2)')
+})

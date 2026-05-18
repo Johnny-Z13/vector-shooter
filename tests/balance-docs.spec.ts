@@ -9,6 +9,7 @@ test('balance documentation generator is wired into package scripts and git hook
 
   expect(pkg.scripts['docs:balance']).toBe('node scripts/update-balance-docs.mjs')
   expect(pkg.scripts['hooks:install']).toBe('git config core.hooksPath .githooks')
+  expect(pkg.scripts.test).toBe('playwright test')
   expect(read('.githooks/pre-commit')).toContain('npm run docs:balance')
 })
 

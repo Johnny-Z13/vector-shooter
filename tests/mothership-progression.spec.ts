@@ -5,6 +5,7 @@ import {
   isMothershipDepartmentUnlocked,
   mergeArchiveRecords,
   mothershipDepartments,
+  normalizeMothershipState,
   purchaseMothershipTier
 } from '../src/mothership-progression'
 
@@ -19,6 +20,58 @@ test('starts with archive enabled and no persistent resources', () => {
   expect(state.departments.signalCore).toBe(0)
   expect(state.departments.hangarCrew).toBe(0)
   expect(state.archive.records).toEqual({})
+})
+
+test('normalizes saved mothership departments to valid tier ranges', () => {
+  const state = normalizeMothershipState({
+    version: 1,
+    resources: { scrap: 4.8, crystal: -12, cores: Number.POSITIVE_INFINITY },
+    departments: {
+      scanner: 99,
+      workbench: 2.7,
+      archive: 99,
+      shipyard: -4,
+      signalCore: Number.NaN,
+      hangarCrew: 5
+    },
+    archive: { records: {}, relicBlueprints: {}, signalFragments: 0 }
+  })
+
+  expect(state.resources).toEqual({ scrap: 4, crystal: 0, cores: 0 })
+  expect(state.departments.scanner).toBe(mothershipDepartments.scanner.tiers.length)
+  expect(state.departments.workbench).toBe(2)
+  expect(state.departments.archive).toBe(mothershipDepartments.archive.tiers.length)
+  expect(state.departments.shipyard).toBe(0)
+  expect(state.departments.signalCore).toBe(0)
+  expect(state.departments.hangarCrew).toBe(mothershipDepartments.hangarCrew.tiers.length)
+})
+
+test('drops malformed archive records from saved mothership data', () => {
+  const state = normalizeMothershipState({
+    version: 1,
+    resources: {},
+    departments: {},
+    archive: {
+      records: {
+        good: { id: 'good', kind: 'lore', title: 'Bone Choir', count: 2.8 },
+        badKind: { id: 'badKind', kind: 'unknown', title: 'Bad Kind' },
+        badTitle: { id: 'badTitle', kind: 'cache', title: 42 }
+      },
+      relicBlueprints: { stable: 3.6, broken: 'many' },
+      signalFragments: 4.2
+    }
+  })
+
+  expect(state.archive.records.good).toEqual({
+    id: 'good',
+    kind: 'lore',
+    title: 'Bone Choir',
+    count: 2
+  })
+  expect(state.archive.records.badKind).toBeUndefined()
+  expect(state.archive.records.badTitle).toBeUndefined()
+  expect(state.archive.relicBlueprints).toEqual({ stable: 3 })
+  expect(state.archive.signalFragments).toBe(4)
 })
 
 test('destroyed runs preserve archive and recover partial resources', () => {

@@ -148,12 +148,55 @@ export const mothershipDepartments: Record<MothershipDepartmentId, DepartmentDef
 }
 
 const clampInt = (value: number) => Math.max(0, Math.floor(Number.isFinite(value) ? value : 0))
+const archiveKinds: readonly ArchiveKind[] = ['relic', 'alien', 'lore', 'planet', 'cache', 'enemy']
 
 const normalizeResources = (resources: Partial<ResourceBundle> | undefined): ResourceBundle => ({
   scrap: clampInt(resources?.scrap ?? 0),
   crystal: clampInt(resources?.crystal ?? 0),
   cores: clampInt(resources?.cores ?? 0)
 })
+
+const clampDepartmentTier = (department: MothershipDepartmentId, value: number) => (
+  Math.min(clampInt(value), mothershipDepartments[department].tiers.length)
+)
+
+const normalizeArchiveRecord = (value: unknown): PersistentArchiveRecord | null => {
+  if (!value || typeof value !== 'object') return null
+  const record = value as Partial<PersistentArchiveRecord>
+  if (typeof record.id !== 'string' || typeof record.title !== 'string') return null
+  if (!archiveKinds.includes(record.kind as ArchiveKind)) return null
+  return {
+    id: record.id,
+    kind: record.kind as ArchiveKind,
+    title: record.title,
+    ...(typeof record.detail === 'string' ? { detail: record.detail } : {}),
+    ...(typeof record.source === 'string' ? { source: record.source } : {}),
+    ...(typeof record.color === 'string' ? { color: record.color } : {}),
+    ...(typeof record.icon === 'number' ? { icon: clampInt(record.icon) } : {}),
+    ...(typeof record.count === 'number' ? { count: clampInt(record.count) } : {})
+  }
+}
+
+const normalizeArchiveRecords = (records: unknown) => {
+  const normalized: Record<string, PersistentArchiveRecord> = {}
+  if (!records || typeof records !== 'object') return normalized
+  for (const value of Object.values(records)) {
+    const record = normalizeArchiveRecord(value)
+    if (record) normalized[record.id] = record
+  }
+  return normalized
+}
+
+const normalizeRelicBlueprints = (blueprints: unknown) => {
+  const normalized: Record<string, number> = {}
+  if (!blueprints || typeof blueprints !== 'object') return normalized
+  for (const [id, value] of Object.entries(blueprints)) {
+    if (typeof value !== 'number') continue
+    const count = clampInt(value)
+    if (count > 0) normalized[id] = count
+  }
+  return normalized
+}
 
 export const normalizeMothershipState = (value: unknown): MothershipState => {
   const fallback = defaultMothershipState()
@@ -164,16 +207,16 @@ export const normalizeMothershipState = (value: unknown): MothershipState => {
     version: 1,
     resources: normalizeResources(input.resources),
     departments: {
-      scanner: clampInt(input.departments?.scanner ?? 0),
-      workbench: clampInt(input.departments?.workbench ?? 0),
-      archive: Math.max(1, clampInt(input.departments?.archive ?? 1)),
-      shipyard: clampInt(input.departments?.shipyard ?? 0),
-      signalCore: clampInt(input.departments?.signalCore ?? 0),
-      hangarCrew: clampInt(input.departments?.hangarCrew ?? 0)
+      scanner: clampDepartmentTier('scanner', input.departments?.scanner ?? 0),
+      workbench: clampDepartmentTier('workbench', input.departments?.workbench ?? 0),
+      archive: Math.max(1, clampDepartmentTier('archive', input.departments?.archive ?? 1)),
+      shipyard: clampDepartmentTier('shipyard', input.departments?.shipyard ?? 0),
+      signalCore: clampDepartmentTier('signalCore', input.departments?.signalCore ?? 0),
+      hangarCrew: clampDepartmentTier('hangarCrew', input.departments?.hangarCrew ?? 0)
     },
     archive: {
-      records: input.archive?.records && typeof input.archive.records === 'object' ? input.archive.records : {},
-      relicBlueprints: input.archive?.relicBlueprints && typeof input.archive.relicBlueprints === 'object' ? input.archive.relicBlueprints : {},
+      records: normalizeArchiveRecords(input.archive?.records),
+      relicBlueprints: normalizeRelicBlueprints(input.archive?.relicBlueprints),
       signalFragments: clampInt(input.archive?.signalFragments ?? 0)
     }
   }

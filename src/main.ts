@@ -6222,6 +6222,7 @@ class VectorShooter {
     button.type = 'button'
     button.className = `collection-filter-chip ${this.mothershipCollectionFilter === filter ? 'active' : ''}`
     button.textContent = this.collectionFilterLabel(filter)
+    button.setAttribute('aria-pressed', String(this.mothershipCollectionFilter === filter))
     button.addEventListener('click', () => {
       this.mothershipCollectionFilter = filter
       this.selectedCollectionId = null
@@ -6556,6 +6557,8 @@ class VectorShooter {
     const button = document.createElement('button')
     button.type = 'button'
     button.className = `mothership-console-tab ${this.mothershipConsoleView === view ? 'active' : ''}`
+    button.setAttribute('aria-label', `${label}: ${meta}`)
+    button.setAttribute('aria-pressed', String(this.mothershipConsoleView === view))
     button.innerHTML = `<span>${this.escape(label)}</span><b>${this.escape(meta)}</b>`
     button.addEventListener('click', () => {
       if (this.mothershipConsoleView === view) return
