@@ -93,7 +93,7 @@ export const mothershipDepartments: Record<MothershipDepartmentId, DepartmentDef
     description: 'Improves mutation signal drafting between landings.',
     tiers: [
       { name: 'Emergency Reroll', description: 'Start each expedition with 1 workbench reroll.', cost: { scrap: 140, crystal: 0, cores: 0 } },
-      { name: 'Expanded Bench', description: 'Small chance for 4 workbench choices.', cost: { scrap: 260, crystal: 16, cores: 0 } },
+      { name: 'Expanded Bench', description: 'Maxed and locked systems stay visible below current offers.', cost: { scrap: 260, crystal: 16, cores: 0 } },
       { name: 'Coherence Bias', description: 'Owned and same-bucket upgrades appear more often.', cost: { scrap: 420, crystal: 36, cores: 1 } },
       { name: 'Salvage Recycle', description: 'Convert unwanted mutation signals into resources.', cost: { scrap: 640, crystal: 70, cores: 2 } }
     ]

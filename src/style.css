@@ -1222,6 +1222,7 @@ canvas {
 .collection-filter-chip:focus-visible,
 .collection-tile:focus-visible,
 .choice:focus-visible,
+button.manifest-chip:focus-visible,
 .name-entry:focus-visible {
   outline: 2px solid var(--yellow);
   outline-offset: 3px;
@@ -1530,6 +1531,18 @@ canvas {
   gap: 8px;
 }
 
+.build-manifest.workbench .manifest-grid {
+  grid-template-columns: 1fr;
+}
+
+.workbench-section-label {
+  margin: 10px 0 6px;
+  color: rgba(255, 242, 122, 0.82);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
 .manifest-special-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1626,6 +1639,12 @@ button.manifest-chip:disabled {
 .manifest-chip.evolved {
   border-color: rgba(185, 144, 255, 0.74);
   background: rgba(185, 144, 255, 0.08);
+}
+
+.manifest-chip.future {
+  border-color: rgba(87, 255, 243, 0.18);
+  color: rgba(215, 255, 247, 0.44);
+  background: rgba(215, 255, 247, 0.025);
 }
 
 .manifest-relics {

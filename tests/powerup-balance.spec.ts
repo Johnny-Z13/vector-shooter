@@ -32,8 +32,7 @@ test('weapon and pickup tuning values are named config, not main-loop constants'
 })
 
 test('workbench roll tuning is configurable', () => {
-  expect(workbenchBalance.baseChoiceCount).toBe(3)
-  expect(workbenchBalance.fourthChoiceBaseChance).toBeGreaterThan(0)
+  expect(workbenchBalance.baseChoiceCount).toBe(5)
   expect(workbenchBalance.ownedBiasBase).toBeGreaterThan(1)
   expect(workbenchBalance.relicChanceRare).toBeGreaterThan(workbenchBalance.relicChanceBase)
 })
@@ -52,4 +51,7 @@ test('workbench upgrade cards distinguish next rank from current manifest rank',
 
   expect(main).toContain('INSTALL RANK ${level}/${choice.upgrade.max}')
   expect(main).toContain('upgradeLevelDetail(upgrade, level)')
+  expect(main).toContain('workbenchRollableUpgrades(upgrades, this.build)')
+  expect(main).toContain('const count = workbenchBalance.baseChoiceCount')
+  expect(main).not.toContain('fourthChoiceChance')
 })

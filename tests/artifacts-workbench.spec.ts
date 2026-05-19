@@ -16,18 +16,24 @@ test('shipboard workbench keeps discoveries in the mothership collection', () =>
   expect(main).toContain("this.mothershipConsoleTab('Collection'")
 })
 
-test('shipboard workbench uses one manifest surface for upgrade choices', () => {
+test('shipboard workbench shows clickable offers before maxed and locked context', () => {
   const main = source()
   const css = styles()
 
   expect(main).not.toContain("type WorkbenchView = 'upgrades' | 'manifest'")
   expect(main).not.toContain("upgradesTab.textContent = 'Upgrades'")
   expect(main).not.toContain("manifestTab.textContent = 'Manifest'")
-  expect(main).toContain("view.append(this.renderBuildManifest('workbench'))")
-  expect(main).toContain('private workbenchChoiceForUpgrade')
+  expect(main).toContain("view.append(this.renderWorkbenchInstallSurface())")
+  expect(main).toContain("offerGrid.className = 'manifest-grid workbench-offers'")
+  expect(main).toContain("maxedGrid.className = 'manifest-grid workbench-maxed'")
+  expect(main).toContain("lockedGrid.className = 'manifest-grid workbench-locked'")
+  expect(main).toContain('workbenchLockedUpgrades(upgrades, this.build)')
   expect(main).toContain('workbench-install-choice')
   expect(main).toContain('this.beginWorkbenchInstall(choice, chip)')
+  expect(main).not.toContain('button.disabled = !available')
+  expect(css).toContain('.workbench-section-label')
   expect(css).toContain('.manifest-chip.available')
+  expect(css).toContain('.manifest-chip.future')
   expect(css).toContain('.manifest-chip.selected')
 })
 

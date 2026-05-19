@@ -270,10 +270,7 @@ export const pickupBalance = {
 } as const
 
 export const workbenchBalance = {
-  baseChoiceCount: 3,
-  fourthChoiceBaseChance: 0.08,
-  fourthChoiceLuckChancePerRank: 0.08,
-  fourthChoiceWorkbenchBonus: 0.08,
+  baseChoiceCount: 5,
   evolutionChanceBase: 0.55,
   evolutionChanceLuckPerRank: 0.06,
   relicChanceBase: 0.04,
@@ -323,7 +320,7 @@ export const upgrades: Upgrade[] = [
   { id: 'repair', name: 'Hull Stitcher', category: 'system', bucket: 'survival', description: 'The long-run hull bucket: bigger maximum hull and full repairs on install.', max: 5, rarity: 78, levels: ['+18 max hull and full repair', '+12% repair value', '+18 max hull and full repair', '+12% repair value', '+26 max hull and full repair'] },
   { id: 'vampire', name: 'Salvage Hunger', category: 'system', bucket: 'survival', description: 'The sustain bucket: enemy wreckage can become emergency repair.', max: 4, rarity: 52, levels: ['+2.5% repair drop chance', '+2.5% repair drop chance', 'Repair drops pull faster', '+3.5% repair drop chance'] },
   { id: 'survey', name: 'Survey Array', category: 'system', bucket: 'planetcraft', description: 'The planet-reading bucket: clearer cache rumors, safer mystery boxes, better relic odds.', max: 4, rarity: 58, levels: ['Planet cache rumors improve', '+8% relic discovery', '-10% ambush chance', 'Hidden cache pings appear more often'] },
-  { id: 'luck', name: 'Luck Coil', category: 'system', bucket: 'economy', description: 'The jackpot bucket: more fourth choices, rarer rolls, and better mystery outcomes.', max: 5, rarity: 54, levels: ['+10% rare roll pressure', '+8% fourth choice chance', '+10% relic chance', '+8% fourth choice chance', 'Cache jackpots become more likely'] },
+  { id: 'luck', name: 'Luck Coil', category: 'system', bucket: 'economy', description: 'The jackpot bucket: rarer rolls, relic pressure, and better mystery outcomes.', max: 5, rarity: 54, levels: ['+10% rare roll pressure', '+8% evolution signal pressure', '+10% relic chance', '+8% rare roll pressure', 'Cache jackpots become more likely'] },
   { id: 'cargo', name: 'Cargo Spine', category: 'system', bucket: 'economy', description: 'The planet-profit bucket: surface salvage pays out more resources and score.', max: 4, rarity: 66, levels: ['+15% planet resources', '+1 core from first cache', '+15% planet resources', '+25% cache score'] },
   { id: 'heat', name: 'Heat Sink', category: 'system', bucket: 'control', description: 'The weapon-tempo bucket: high fire-rate builds stay fast and stable.', max: 4, rarity: 62, levels: ['-3% weapon cooldown', '+8% projectile speed', '-3% weapon cooldown', 'Rail and needle shots cool faster'] },
   { id: 'phase', name: 'Phase Rudder', category: 'system', bucket: 'control', description: 'The panic-button bucket: safer dashes, brief ram damage, softer collisions, stronger escape shockwaves.', max: 4, rarity: 58, levels: ['+0.09s dash invulnerability', 'Dash ram shocks enemies', '+0.09s dash invulnerability', 'Dash shockwave knocks enemies back harder'] },

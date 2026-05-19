@@ -7,7 +7,7 @@ Galactic Hordes uses Vampire Survivors-style build pressure, but moves the upgra
 1. Fly through space, auto-fire, kill hordes, collect XP shards.
 2. XP levels bank mutation signals instead of opening upgrades immediately.
 3. Land on a planet to collect scrap, crystal, cores, and cache mystery boxes.
-4. Return to the ship; the workbench offers 3 choices, with a Luck-based chance for 4.
+4. Return to the ship; the workbench shows 5 clickable offers from the currently unlocked upgrade pool.
 5. Choices are weighted by rarity and biased toward already-owned modules.
 6. Maxed weapons plus matching relics can evolve into jackpot weapons.
 7. If normal upgrades run out, Limit Break keeps feeding small infinite upgrades.
@@ -26,10 +26,10 @@ The workbench should feel like choosing a build direction, not buying tiny line 
 ## Workbench Rules
 
 - Owned upgrades are more likely to appear, so builds cohere over a run.
-- Maxed upgrades stop appearing.
+- Maxed upgrades stop appearing as installable offers, but remain visible below current offers as completed systems.
+- Locked future systems appear below maxed systems with unlock hints.
 - Rare runs can offer relics directly, but planets are the main source of relics.
 - Available evolutions get priority as golden choices.
-- Fourth-choice chance starts low and rises with Luck Coil.
 - Limit Break appears only when the normal pool is exhausted or nearly exhausted.
 
 ## Weapons
@@ -57,7 +57,7 @@ The workbench should feel like choosing a build direction, not buying tiny line 
 | Hull Stitcher | 5 | 78 | Survival: max hull, full repairs, repair scaling |
 | Salvage Hunger | 4 | 52 | Survival: kill-to-repair drops |
 | Survey Array | 4 | 58 | Planetcraft: safer planet caches and better relic odds |
-| Luck Coil | 5 | 54 | Economy: fourth workbench choices and better mystery boxes |
+| Luck Coil | 5 | 54 | Economy: rarer workbench rolls and better mystery boxes |
 | Cargo Spine | 4 | 66 | Economy: more scrap, crystals, cores, and cache score |
 | Heat Sink | 4 | 62 | Control: cooldown support for fast-fire builds |
 | Phase Rudder | 4 | 58 | Control: dash invulnerability and reduced collision damage |
