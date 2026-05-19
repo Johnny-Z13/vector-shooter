@@ -176,3 +176,13 @@ test('mothership console controls expose clear focus disabled and tab labels', (
   expect(css).toContain('.vector-button:disabled')
   expect(css).toContain('background: linear-gradient(135deg, rgba(255, 242, 122, 0.2)')
 })
+
+test('mobile workbench install manifest uses full width touch targets', () => {
+  const css = styles()
+
+  expect(css).toContain('.build-manifest.workbench .manifest-grid {')
+  expect(css).toContain('grid-template-columns: 1fr')
+  expect(css).toContain('.build-manifest.workbench .manifest-chip.available')
+  expect(css).toContain('touch-action: manipulation')
+  expect(css).toContain('overflow: visible')
+})
