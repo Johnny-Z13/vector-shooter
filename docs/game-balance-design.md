@@ -91,7 +91,7 @@ Active balance mode: `testEasy` (Testing Easy).
 | Weapon base damage | 14 |
 | XP pickup radius | 5.6 |
 | XP merge radius max | 12.6 |
-| Workbench base choices | 3 |
+| Workbench base choices | 5 |
 | Relic chance base | 0.18 |
 | Surface gun damage | 18 |
 | Surface health base | 86 |

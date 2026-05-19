@@ -86,6 +86,11 @@ import {
   returnBeaconAutopilotVector,
   returnBeaconEligible
 } from './return-beacons'
+import {
+  workbenchLockedUpgrades,
+  workbenchRollableUpgrades,
+  workbenchUnlockEdges
+} from './workbench-rolls'
 
 type GameState = 'title' | 'mothership' | 'playing' | 'paused' | 'levelup' | 'planet' | 'landing' | 'surface' | 'alien' | 'lore' | 'takeoff' | 'dying' | 'debrief' | 'gameover' | 'scores'
 type PickupKind = 'xp' | 'repair' | 'magnet' | 'core' | 'chest'
@@ -2748,11 +2753,7 @@ class VectorShooter {
     this.state = 'levelup'
     this.audio.level()
     this.workbenchInstalling = false
-    const benchTier = this.mothership.departments.workbench
-    const fourthChoiceChance = workbenchBalance.fourthChoiceBaseChance
-      + this.build.luck * workbenchBalance.fourthChoiceLuckChancePerRank
-      + (benchTier >= 2 ? workbenchBalance.fourthChoiceWorkbenchBonus : 0)
-    const count = workbenchBalance.baseChoiceCount + (rare || Math.random() < fourthChoiceChance ? 1 : 0)
+    const count = workbenchBalance.baseChoiceCount
     this.upgradeChoices = this.rollUpgrades(count, rare)
     this.renderLevelUp(title, copy)
   }
@@ -2779,7 +2780,8 @@ class VectorShooter {
     }
     const relic = this.rollRelicChoice(rare)
     if (relic && choices.length < count) choices.push({ kind: 'relic', relic })
-    const available = upgrades.filter((u) => this.build[u.id] < u.max && !choices.some((choice) => choice.kind === 'upgrade' && choice.upgrade.id === u.id))
+    const available = workbenchRollableUpgrades(upgrades, this.build)
+      .filter((u) => !choices.some((choice) => choice.kind === 'upgrade' && choice.upgrade.id === u.id))
     while (choices.length < count && available.length) {
       const selected = this.weightedUpgrade(available, rare)
       choices.push({ kind: 'upgrade', upgrade: selected })
@@ -6036,7 +6038,7 @@ class VectorShooter {
       recycle.addEventListener('click', () => this.recycleWorkbenchSignal())
       actions.append(recycle)
     }
-    view.append(this.renderBuildManifest('workbench'))
+    view.append(this.renderWorkbenchInstallSurface())
     panel.append(h, p)
     if (actions.children.length) panel.append(actions)
     panel.append(view)
@@ -6113,16 +6115,6 @@ class VectorShooter {
     return choice.name
   }
 
-  private workbenchChoiceForUpgrade(upgrade: Upgrade) {
-    return this.upgradeChoices.find((choice) => (
-      choice.kind === 'upgrade'
-        ? choice.upgrade.id === upgrade.id
-        : choice.kind === 'evolution'
-          ? choice.evolution.weapon === upgrade.id
-          : false
-    )) ?? null
-  }
-
   private workbenchChoiceRoute(choice: WorkbenchChoice, currentLevel: number) {
     if (choice.kind === 'upgrade') return `INSTALL RANK ${Math.min(currentLevel + 1, choice.upgrade.max)}/${choice.upgrade.max}`
     if (choice.kind === 'evolution') return 'EVOLUTION READY'
@@ -6151,14 +6143,7 @@ class VectorShooter {
     return 'LIMIT BREAK'
   }
 
-  private renderBuildManifest(mode: 'overview' | 'workbench' = 'overview') {
-    const wrap = document.createElement('div')
-    wrap.className = `build-manifest ${mode}`
-    const title = document.createElement('div')
-    title.className = 'manifest-title'
-    title.innerHTML = mode === 'workbench'
-      ? '<b>BUILD MANIFEST</b><span>tap highlighted systems to install banked signals</span>'
-      : '<b>BUILD MANIFEST</b><span>locked systems, owned ranks, and evolution routes</span>'
+  private renderManifestSummary() {
     const summary = document.createElement('div')
     summary.className = 'manifest-summary'
     const ownedCount = upgrades.filter((upgrade) => this.build[upgrade.id] > 0).length
@@ -6171,33 +6156,116 @@ class VectorShooter {
       <div><b>${this.evolved.size}/${evolutions.length}</b><span>evolved</span></div>
       <div><b>${limitCount}</b><span>limits</span></div>
     `
+    return summary
+  }
+
+  private renderManifestRelicLine() {
+    const relicLine = document.createElement('div')
+    relicLine.className = 'manifest-relics'
+    relicLine.textContent = this.relics.size > 0
+      ? Array.from(this.relics).map((id) => relics.find((relic) => relic.id === id)?.name ?? id).join(' // ')
+      : 'No relics installed yet.'
+    return relicLine
+  }
+
+  private workbenchSectionLabel(label: string) {
+    const el = document.createElement('div')
+    el.className = 'workbench-section-label'
+    el.textContent = label
+    return el
+  }
+
+  private renderWorkbenchChoiceChip(choice: WorkbenchChoice) {
+    const chip = document.createElement('button')
+    chip.type = 'button'
+    const level = choice.kind === 'upgrade' ? this.build[choice.upgrade.id] : 0
+    const kindClass = choice.kind === 'upgrade' ? choice.upgrade.bucket : choice.kind
+    chip.className = `manifest-chip available workbench-install-choice ${kindClass}`
+    chip.addEventListener('click', () => this.beginWorkbenchInstall(choice, chip))
+    chip.innerHTML = `
+      <div class="manifest-chip-head">
+        <strong>${this.escape(this.choiceTitle(choice))}</strong>
+        <b>${this.choiceKindLabel(choice)}</b>
+      </div>
+      <span>${this.escape(`${this.workbenchChoiceRoute(choice, level)} // ${this.choiceDetail(choice)}`)}</span>
+      <em>${this.escape(this.choiceCategoryLabel(choice))}</em>
+    `
+    return chip
+  }
+
+  private maxedUnlockText(upgrade: Upgrade) {
+    const unlocked = workbenchUnlockEdges
+      .filter((edge) => edge.source === upgrade.id)
+      .flatMap((edge) => edge.unlocks)
+      .map((id) => upgrades.find((candidate) => candidate.id === id)?.name ?? id)
+    if (unlocked.length) return `UNLOCKED: ${unlocked.join(' // ')}`
+    return this.upgradeLevelDetail(upgrade, upgrade.max)
+  }
+
+  private renderWorkbenchContextChip(upgrade: Upgrade, status: 'MAXED' | 'LOCKED', detail: string, extraClass = '') {
+    const level = this.build[upgrade.id]
+    const chip = document.createElement('div')
+    chip.className = `manifest-chip ${level > 0 ? 'owned' : 'locked'} ${status === 'MAXED' ? 'maxed' : ''} ${extraClass} ${upgrade.bucket}`
+    chip.innerHTML = `
+      <div class="manifest-chip-head">
+        <strong>${this.escape(upgrade.name)}</strong>
+        <b>${level}/${upgrade.max}</b>
+      </div>
+      <span>${this.escape(`${status} // ${detail}`)}</span>
+      <em>${this.bucketLabel(upgrade.bucket)}</em>
+    `
+    return chip
+  }
+
+  private renderWorkbenchInstallSurface() {
+    const wrap = document.createElement('div')
+    wrap.className = 'build-manifest workbench'
+    const title = document.createElement('div')
+    title.className = 'manifest-title'
+    title.innerHTML = '<b>SHIP WORKBENCH</b><span>installable offers first // maxed and locked systems below</span>'
+    const offerGrid = document.createElement('div')
+    offerGrid.className = 'manifest-grid workbench-offers'
+    for (const choice of this.upgradeChoices) offerGrid.append(this.renderWorkbenchChoiceChip(choice))
+    wrap.append(title, this.renderManifestSummary(), this.workbenchSectionLabel('AVAILABLE SIGNALS'), offerGrid)
+
+    const maxed = upgrades.filter((upgrade) => this.build[upgrade.id] >= upgrade.max)
+    if (maxed.length) {
+      const maxedGrid = document.createElement('div')
+      maxedGrid.className = 'manifest-grid workbench-maxed'
+      for (const upgrade of maxed) maxedGrid.append(this.renderWorkbenchContextChip(upgrade, 'MAXED', this.maxedUnlockText(upgrade)))
+      wrap.append(this.workbenchSectionLabel('MAXED SYSTEMS'), maxedGrid)
+    }
+
+    const locked = workbenchLockedUpgrades(upgrades, this.build)
+    if (locked.length) {
+      const lockedGrid = document.createElement('div')
+      lockedGrid.className = 'manifest-grid workbench-locked'
+      for (const entry of locked) lockedGrid.append(this.renderWorkbenchContextChip(entry.upgrade, 'LOCKED', entry.requirement, 'future'))
+      wrap.append(this.workbenchSectionLabel('LOCKED SYSTEMS'), lockedGrid)
+    }
+
+    wrap.append(this.renderManifestRelicLine())
+    return wrap
+  }
+
+  private renderBuildManifest() {
+    const wrap = document.createElement('div')
+    wrap.className = 'build-manifest overview'
+    const title = document.createElement('div')
+    title.className = 'manifest-title'
+    title.innerHTML = '<b>BUILD MANIFEST</b><span>locked systems, owned ranks, and evolution routes</span>'
     const chips = document.createElement('div')
     chips.className = 'manifest-grid'
-    const mappedChoices = new Set<WorkbenchChoice>()
     for (const upgrade of upgrades) {
       const level = this.build[upgrade.id]
       const maxed = level >= upgrade.max
       const evolved = this.evolved.has(upgrade.id)
       const catalyst = upgrade.catalyst ? relics.find((relic) => relic.id === upgrade.catalyst) : null
       const ready = maxed && catalyst && this.relics.has(catalyst.id) && !evolved
-      const choice = mode === 'workbench' ? this.workbenchChoiceForUpgrade(upgrade) : null
-      if (choice) mappedChoices.add(choice)
-      const available = Boolean(choice && this.canApplyWorkbenchChoice(choice))
-      const chipClass = `manifest-chip ${level > 0 ? 'owned' : 'locked'} ${maxed ? 'maxed' : ''} ${ready ? 'ready' : ''} ${evolved ? 'evolved' : ''} ${available ? 'available workbench-install-choice' : ''} ${upgrade.bucket}`
-      let chip: HTMLDivElement | HTMLButtonElement
-      if (choice) {
-        const button = document.createElement('button')
-        button.className = chipClass
-        button.type = 'button'
-        button.disabled = !available
-        button.addEventListener('click', () => this.beginWorkbenchInstall(choice, button))
-        chip = button
-      } else {
-        chip = document.createElement('div')
-        chip.className = chipClass
-      }
-      const route = choice ? this.workbenchChoiceRoute(choice, level) : evolved ? 'EVOLVED' : ready ? 'EVOLUTION READY' : catalyst ? `CATALYST: ${catalyst.name}` : upgrade.category === 'weapon' ? 'WEAPON SYSTEM' : 'SHIP SYSTEM'
-      const currentEffect = choice ? ` // ${this.choiceDetail(choice)}` : level > 0 ? ` // ${this.upgradeLevelDetail(upgrade, level)}` : ''
+      const chip = document.createElement('div')
+      chip.className = `manifest-chip ${level > 0 ? 'owned' : 'locked'} ${maxed ? 'maxed' : ''} ${ready ? 'ready' : ''} ${evolved ? 'evolved' : ''} ${upgrade.bucket}`
+      const route = evolved ? 'EVOLVED' : ready ? 'EVOLUTION READY' : catalyst ? `CATALYST: ${catalyst.name}` : upgrade.category === 'weapon' ? 'WEAPON SYSTEM' : 'SHIP SYSTEM'
+      const currentEffect = level > 0 ? ` // ${this.upgradeLevelDetail(upgrade, level)}` : ''
       chip.innerHTML = `
         <div class="manifest-chip-head">
           <strong>${this.escape(upgrade.name)}</strong>
@@ -6208,35 +6276,7 @@ class VectorShooter {
       `
       chips.append(chip)
     }
-    const specialChoices = mode === 'workbench'
-      ? this.upgradeChoices.filter((choice) => !mappedChoices.has(choice))
-      : []
-    const specialGrid = document.createElement('div')
-    specialGrid.className = 'manifest-special-grid'
-    for (const choice of specialChoices) {
-      const chip = document.createElement('button')
-      chip.type = 'button'
-      chip.className = `manifest-chip special available workbench-install-choice ${choice.kind}`
-      chip.disabled = !this.canApplyWorkbenchChoice(choice)
-      chip.addEventListener('click', () => this.beginWorkbenchInstall(choice, chip))
-      chip.innerHTML = `
-        <div class="manifest-chip-head">
-          <strong>${this.escape(this.choiceTitle(choice))}</strong>
-          <b>${this.choiceKindLabel(choice)}</b>
-        </div>
-        <span>${this.escape(this.choiceDetail(choice))}</span>
-        <em>${this.escape(this.choiceCategoryLabel(choice))}</em>
-      `
-      specialGrid.append(chip)
-    }
-    const relicLine = document.createElement('div')
-    relicLine.className = 'manifest-relics'
-    relicLine.textContent = this.relics.size > 0
-      ? Array.from(this.relics).map((id) => relics.find((relic) => relic.id === id)?.name ?? id).join(' // ')
-      : 'No relics installed yet.'
-    wrap.append(title, summary, chips)
-    if (specialGrid.children.length) wrap.append(specialGrid)
-    wrap.append(relicLine)
+    wrap.append(title, this.renderManifestSummary(), chips, this.renderManifestRelicLine())
     return wrap
   }
 

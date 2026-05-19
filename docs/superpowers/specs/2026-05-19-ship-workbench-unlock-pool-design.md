@@ -58,6 +58,7 @@ Unlocks happen when a system reaches max rank:
 - Max Signal Magnet unlocks Luck Coil and Cargo Spine.
 - Max Luck Coil unlocks Survey Array.
 - Max Survey Array unlocks Exo-Lung, Skinweave Suit, and Field Blaster.
+- Max Static Arc unlocks Ion Moons.
 - Max Rail Lattice or Echo Chamber unlocks Rift Needle.
 - Max Phase Rudder or Cargo Spine unlocks Mine Wake.
 

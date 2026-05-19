@@ -75,7 +75,7 @@ Galactic Hordes does not open upgrade choices immediately on level-up. XP banks 
 4. Return to the ship.
 5. Spend banked mutation signals at the workbench.
 
-Workbench choices are weighted by rarity and biased toward upgrades already owned. Maxed upgrades disappear. If a maxed weapon has the right planet relic, an evolution can appear as a jackpot choice.
+The workbench shows five clickable offers from the currently unlocked upgrade pool. Choices are weighted by rarity and biased toward upgrades already owned. Maxed systems stay visible as completed context below the offers, and locked future systems appear below that as scrollable unlock hints. If a maxed weapon has the right planet relic, an evolution can appear as a jackpot choice.
 
 Upgrades are grouped into bigger build buckets:
 
@@ -132,7 +132,7 @@ Active balance mode: `testEasy` (Testing Easy).
 | Weapon base damage | 14 |
 | XP pickup radius | 5.6 |
 | XP merge radius max | 12.6 |
-| Workbench base choices | 3 |
+| Workbench base choices | 5 |
 | Relic chance base | 0.18 |
 | Surface gun damage | 18 |
 | Surface health base | 86 |
