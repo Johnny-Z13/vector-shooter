@@ -75,3 +75,10 @@ test('main space loop wires encounter events into update render and reset', () =
   expect(main).toContain('this.spaceHazards = []')
   expect(main).toContain('this.derelictSignals = []')
 })
+
+test('derelict cache chest persists long enough to collect after following the signal', () => {
+  const main = source()
+
+  expect(main).toContain('kind: signal.pickupKind')
+  expect(main).toContain('life: pickupBalance.persistentLifeSeconds')
+})

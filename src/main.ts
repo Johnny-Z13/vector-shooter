@@ -2496,7 +2496,7 @@ class VectorShooter {
     const signal = derelictCacheSignal({ player: this.player })
     this.derelictSignals.push({ x: signal.x, y: signal.y, phase: 0, life: 34 })
     if (this.pickups.length >= MAX_PICKUPS) this.pickups.shift()
-    this.pickups.push({ kind: signal.pickupKind, x: signal.x, y: signal.y, vx: 0, vy: 0, value: 1, radius: 18, life: 34, color: '#fff27a' })
+    this.pickups.push({ kind: signal.pickupKind, x: signal.x, y: signal.y, vx: 0, vy: 0, value: 1, radius: 18, life: pickupBalance.persistentLifeSeconds, color: '#fff27a' })
     for (const [index, guardian] of signal.guardians.entries()) {
       if (this.enemies.length >= MAX_ENEMIES) break
       const angle = (index / signal.guardians.length) * TAU
